@@ -1497,7 +1497,11 @@ function AttendanceCalendarMatrix({ workers, records, year, month }) {
                 {dates.map((date) => {
                   const record = attendanceByWorkerDate.get(`${Number(worker.id)}:${date.iso}`);
                   const state = record ? ATTENDANCE_MATRIX_STATES[String(record.state || "").toUpperCase()] : null;
-                  return <td className={`${date.weekend ? "is-weekend " : ""}${state ? `is-${state.tone}` : "is-empty"}`} key={date.iso} title={state ? `${worker.name}: ${state.label} · ${formatCalendarDate(date.iso)}` : `${worker.name}: sin registro · ${formatCalendarDate(date.iso)}`}>{state?.code || ""}</td>;
+                  const observation = String(record?.observation || "").trim();
+                  const cellTitle = state
+                    ? [`${worker.name}: ${state.label} · ${formatCalendarDate(date.iso)}`, observation ? `Observación: ${observation}` : null].filter(Boolean).join("\n")
+                    : `${worker.name}: sin registro · ${formatCalendarDate(date.iso)}`;
+                  return <td className={`${date.weekend ? "is-weekend " : ""}${state ? `is-${state.tone}` : "is-empty"}`} key={date.iso} title={cellTitle} aria-label={cellTitle}>{state?.code || ""}</td>;
                 })}
               </tr>
             ))}
@@ -2774,8 +2778,13 @@ export default function FootwearDashboard() {
     { value: "turno regular", label: "Turno regular" },
     { value: "turno extra", label: "Turno extra" },
     { value: "incidencia", aliases: ["incidencia", "error"], label: "Incidencias" }
-  ].filter((shift) => qualityRecordKind !== "errores" || shift.value !== "incidencia");
+  ].filter((shift) => {
+    if (qualityRecordKind === "incidencias") return shift.value === "incidencia";
+    if (qualityRecordKind === "errores") return shift.value !== "incidencia";
+    return true;
+  });
   const qualityRecordTotal = visibleQualityRecords.length;
+  const qualityRecordPercentage = totalGuideCount ? (qualityRecordTotal / totalGuideCount) * 100 : 0;
   const filteredErrorsByTypeAndShift = qualityShiftOptions.map((shift) => {
     const acceptedValues = shift.aliases || [shift.value];
     const rows = visibleQualityRecords.filter((incident) => acceptedValues.includes(incident.shift));
@@ -2785,10 +2794,10 @@ export default function FootwearDashboard() {
       name: shift.label,
       primaryRows,
       secondaryRows,
-      primary: qualityRecordTotal ? (primaryRows.length / qualityRecordTotal) * 100 : 0,
-      secondary: qualityRecordTotal ? (secondaryRows.length / qualityRecordTotal) * 100 : 0,
-      primaryDetail: primaryRows.length ? `${primaryRows.length} registro(s) · Haz clic para ver responsables` : "Sin registros de contenido",
-      secondaryDetail: secondaryRows.length ? `${secondaryRows.length} registro(s) · Haz clic para ver responsables` : "Sin registros liberados"
+      primary: totalGuideCount ? (primaryRows.length / totalGuideCount) * 100 : 0,
+      secondary: totalGuideCount ? (secondaryRows.length / totalGuideCount) * 100 : 0,
+      primaryDetail: primaryRows.length ? `${primaryRows.length} de ${totalGuideCount} guías · Haz clic para ver responsables` : "Sin registros de contenido",
+      secondaryDetail: secondaryRows.length ? `${secondaryRows.length} de ${totalGuideCount} guías · Haz clic para ver responsables` : "Sin registros liberados"
     };
   });
   const aggregateAttendance = (rows) => [...rows.reduce((totals, row) => {
@@ -3740,7 +3749,7 @@ export default function FootwearDashboard() {
                 <Card
                   id="pbi-error-types"
                   title={`${qualityLabel} por Turno y Tipo · ${selectedMonthTitleLabel}`}
-                  meta={`${visibleQualityRecords.length} registro(s) · 100 %`}
+                  meta={`${visibleQualityRecords.length} registro(s) de ${totalGuideCount} guías · ${oneDecimalFormatter.format(qualityRecordPercentage)} %`}
                   className="pbi-card--chart pbi-card--error-comparison pbi-card--span-8"
                 >
                   <ComparisonBars

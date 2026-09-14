@@ -1548,7 +1548,8 @@ async function handleReadFootwearDashboard(request, response) {
       ].filter((row) => row.workerId && row.taskId && row.date),
       attendances: visibleAttendances.map((row) => ({
         id: Number(row.id), workerId: Number(row.usuario_id), date: dashboardDate(row.fecha || row.created_at),
-        state: String(row.estado || "FALTA").toUpperCase(), earlyExit: Boolean(row.retiro_anticipado)
+        state: String(row.estado || "FALTA").toUpperCase(), earlyExit: Boolean(row.retiro_anticipado),
+        observation: String(row.observacion || "").trim() || null
       })).filter((row) => row.workerId && row.date),
       incidents: visibleIncidents.map((row) => ({
         id: Number(row.id_error), workerId: Number(row.usuario_id) || null, areaId: Number(row.area_id) || null, taskId: Number(row.tarea_error_id),
@@ -3438,7 +3439,7 @@ async function handleReadActivityLogs(request, response) {
       return;
     }
     if (source === "registros_tareas") {
-      if (!["administrador", "otros"].includes(normalizeRole(session.rol))) {
+      if (!["administrador", "lider de equipo", "otros"].includes(normalizeRole(session.rol))) {
         sendJson(response, 403, { error: "Tu rol no puede consultar la tabla completa." });
         return;
       }
@@ -3454,7 +3455,7 @@ async function handleReadActivityLogs(request, response) {
 
 async function handleReadOperationalRecords(request, response) {
   try {
-    const session = requireSessionRole(request, response, ["administrador", "otros"]);
+    const session = requireSessionRole(request, response, ["administrador", "lider de equipo", "otros"]);
     if (!session) return;
     const url = new URL(request.url, `http://${request.headers.host}`);
     const source = url.searchParams.get("source") === "time" ? "time" : "normal";

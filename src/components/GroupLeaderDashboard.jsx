@@ -180,7 +180,7 @@ export function TaskAverageField({ label, value, onSave }) {
 }
 function GroupLeaderDashboard({ user }) {
   const [workspace, setWorkspace] = useSessionState(`leader-workspace:${user?.id || "unknown"}`, "Registro de tiempos de operarios");
-  const isOtherRole = normalizeRole(user?.rol) === "otros";
+  const canViewAllWorkers = ["lider de equipo", "otros"].includes(normalizeRole(user?.rol));
   const tabs = [
     "Registro de tiempos de operarios",
     "Registro operario",
@@ -191,7 +191,7 @@ function GroupLeaderDashboard({ user }) {
 
   useEffect(() => {
     if (!tabs.includes(workspace)) {
-      setWorkspace(isOtherRole && workspace === "Registros de todos los operantes" ? "Registro operario" : tabs[0]);
+      setWorkspace(canViewAllWorkers && workspace === "Registros de todos los operantes" ? "Registro operario" : tabs[0]);
       return;
     }
     setVisitedWorkspaces((current) => {
@@ -200,7 +200,7 @@ function GroupLeaderDashboard({ user }) {
       next.add(workspace);
       return next;
     });
-  }, [workspace, isOtherRole, setWorkspace]);
+  }, [workspace, canViewAllWorkers, setWorkspace]);
 
   function keptWorkspace(name, content) {
     if (!visitedWorkspaces.has(name)) return null;
@@ -220,7 +220,7 @@ function GroupLeaderDashboard({ user }) {
           <Panel title="Registro operario" eyebrow="Registro propio">
             <Alert>Los registros de este apartado quedarÃ¡n asociados a tu propio usuario, no al operante.</Alert>
           </Panel>
-          <WorkerDashboard user={user} embedded showAllWorkers={isOtherRole} />
+          <WorkerDashboard user={user} embedded showAllWorkers={canViewAllWorkers} />
         </div>
       ))}
       {keptWorkspace("Registrar errores", <IncidentDashboard user={user} />)}

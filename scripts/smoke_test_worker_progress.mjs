@@ -61,10 +61,25 @@ const administrator = await loginFor("administrador");
 const forbidden = await api("/api/worker/live-progress", { headers: administrator.auth });
 assert(forbidden.response.status === 403, "Un administrador no debe consumir la vista privada del operante.");
 
+const leader = await loginFor("lider de equipo");
+const allWorkerRecords = await api("/api/operational-records?source=normal&page=1&pageSize=25&includeCatalogs=true", {
+  headers: leader.auth
+});
+assert(allWorkerRecords.response.ok, allWorkerRecords.payload.error || "El líder no pudo consultar los registros de todos los operantes.");
+assert(Array.isArray(allWorkerRecords.payload.records), "La consulta del líder no devolvió registros paginados.");
+
+const workerAllRecords = await api("/api/operational-records?source=normal&page=1&pageSize=25", {
+  headers: operante.auth
+});
+assert(workerAllRecords.response.status === 403, "Un operante no debe consultar los registros de todos los operantes.");
+
 console.log(JSON.stringify({
   ok: true,
   workerId: operante.id,
   activitiesVisible: progress.payload.activities.length,
   migrationRequired: Boolean(progress.payload.operationsMigrationRequired),
-  administratorStatus: forbidden.response.status
+  administratorStatus: forbidden.response.status,
+  leaderAllRecordsStatus: allWorkerRecords.response.status,
+  leaderRecordsVisible: allWorkerRecords.payload.records.length,
+  workerAllRecordsStatus: workerAllRecords.response.status
 }, null, 2));
