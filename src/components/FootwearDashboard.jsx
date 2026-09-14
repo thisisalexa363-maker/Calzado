@@ -3629,7 +3629,7 @@ export default function FootwearDashboard() {
                   id="pbi-attendance-matrix"
                   title={`Matriz de Asistencia · ${MONTHLY_TASKS[attendanceMatrixMonth - 1]?.label || "Mes"} ${attendanceMatrixYear}`}
                   meta="Detalle diario"
-                  className="pbi-card--chart pbi-card--span-6 pbi-card--attendance-matrix"
+                  className="pbi-card--chart pbi-card--span-12 pbi-card--attendance-matrix"
                 >
                   <AttendanceCalendarMatrix
                     workers={peopleWorkers}
