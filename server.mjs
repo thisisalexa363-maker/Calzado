@@ -253,6 +253,12 @@ function taskTitle(task) {
   return String(task?.nombre || task?.titulo || "");
 }
 
+const LOTE_GENERAL_CODE = "LOTE GENERAL";
+
+function isGeneralLoteCode(value) {
+  return String(value || "").trim().toUpperCase() === LOTE_GENERAL_CODE;
+}
+
 function taskUsesStore(task) {
   const title = normalizeRole(taskTitle(task));
   const storeTaskNames = [
@@ -1407,8 +1413,15 @@ async function handleReadFootwearDashboard(request, response) {
     // produccion aplican aparte su filtro de operantes y lideres de equipo.
     const dashboardUsers = users;
     const dashboardUserIds = new Set(dashboardUsers.map((user) => Number(user.id)));
-    const visibleWorkerRecords = workerRecords.filter((row) => dashboardUserIds.has(Number(row.usuario_id || row.trabajador_id)));
-    const visibleLeaderRecords = leaderRecords.filter((row) => dashboardUserIds.has(Number(row.usuario_id || row.trabajador_id)));
+    const dashboardWorkerRecords = workerRecords.filter((row) => (
+      dashboardUserIds.has(Number(row.usuario_id || row.trabajador_id))
+    ));
+    const visibleWorkerRecords = dashboardWorkerRecords.filter((row) => !isGeneralLoteCode(row.dato_extra || row.lote));
+    const generalLoteWorkerRecords = dashboardWorkerRecords.filter((row) => isGeneralLoteCode(row.dato_extra || row.lote));
+    const visibleLeaderRecords = leaderRecords.filter((row) => (
+      dashboardUserIds.has(Number(row.usuario_id || row.trabajador_id))
+      && !isGeneralLoteCode(row.lote || row.dato_extra)
+    ));
     const visibleAttendances = attendances.filter((row) => dashboardUserIds.has(Number(row.usuario_id)));
     const visibleIncidents = incidents.filter((row) => !row.usuario_id || dashboardUserIds.has(Number(row.usuario_id)));
     const visibleWarnings = warnings.filter((row) => dashboardUserIds.has(Number(row.usuario_id)));
@@ -1521,7 +1534,7 @@ async function handleReadFootwearDashboard(request, response) {
         active: isActive(task.activo)
       })),
       brands: brands.map((brand) => ({ id: Number(brand.id), name: String(brand.nombre || `Marca ${brand.id}`) })),
-      lotes: lotes.map((lote) => ({
+      lotes: lotes.filter((lote) => !lote.es_general && !isGeneralLoteCode(lote.codigo_lote)).map((lote) => ({
         id: Number(lote.id),
         code: String(lote.codigo_lote || "").trim().toUpperCase(),
         quantity: Number(lote.cantidad_lote || 0),
@@ -1546,6 +1559,11 @@ async function handleReadFootwearDashboard(request, response) {
         ...visibleWorkerRecords.map((row) => normalizeActivity(row, "operante")),
         ...visibleLeaderRecords.map((row) => normalizeActivity(row, "jefe-equipo"))
       ].filter((row) => row.workerId && row.taskId && row.date),
+      // Coleccion separada: solo la consume la tabla "Detalle de Registro de
+      // Tareas". No participa en ningun KPI, grafica, ranking ni calculo.
+      generalLoteActivities: generalLoteWorkerRecords
+        .map((row) => ({ ...normalizeActivity(row, "operante"), isGeneralLote: true }))
+        .filter((row) => row.workerId && row.taskId && row.date),
       attendances: visibleAttendances.map((row) => ({
         id: Number(row.id), workerId: Number(row.usuario_id), date: dashboardDate(row.fecha || row.created_at),
         state: String(row.estado || "FALTA").toUpperCase(), earlyExit: Boolean(row.retiro_anticipado),
@@ -1631,13 +1649,14 @@ function normalizedGuideItems(value) {
     const numero_guia = String(item.numero_guia || "").trim();
     const cantidad = Number(item.cantidad);
     const tienda_id = Number(item.tienda_id);
+    const detalle = String(item.detalle || "").trim() || null;
     if (!numero_guia || !Number.isFinite(cantidad) || cantidad <= 0 || !Number.isInteger(tienda_id) || tienda_id <= 0) {
       throw new Error("Cada guía debe tener un número y una cantidad mayor a cero.");
     }
     const normalizedNumber = normalizeRole(numero_guia);
     if (seen.has(normalizedNumber)) throw new Error("No puedes repetir un número de guía en el mismo registro.");
     seen.add(normalizedNumber);
-    return { numero_guia, cantidad, tienda_id };
+    return { numero_guia, cantidad, tienda_id, detalle };
   });
 }
 
@@ -1742,8 +1761,10 @@ async function selectGroupLeaderActivityLogsForWorker(workerId) {
 
 async function selectActivityLogs(workerId = null) {
   const resources = [
-    { table: "v_registro_actividades", userColumn: "usuario_id", orderColumn: "fecha_registro" },
-    { table: "registros_tareas", userColumn: "usuario_id", orderColumn: "fecha_registro" }
+    // La tabla contiene los campos mas recientes (por ejemplo detalle_guia).
+    // La vista antigua queda como respaldo para instalaciones heredadas.
+    { table: "registros_tareas", userColumn: "usuario_id", orderColumn: "fecha_registro" },
+    { table: "v_registro_actividades", userColumn: "usuario_id", orderColumn: "fecha_registro" }
   ];
 
   let lastError = null;
@@ -2215,7 +2236,7 @@ async function handleDeleteStore(request, response, storeId) {
   }
 }
 
-const LOTE_SELECT_COLUMNS = "id,codigo_lote,cantidad_lote,marca_id,fecha_ingreso,fecha_trabajo,fecha_fin_clasificado,fecha_inicio_etiquetado,proveedor,usuario_id,estado,fecha_completada";
+const LOTE_SELECT_COLUMNS = "id,codigo_lote,cantidad_lote,marca_id,fecha_ingreso,fecha_trabajo,fecha_fin_clasificado,fecha_inicio_etiquetado,proveedor,usuario_id,estado,fecha_completada,es_general";
 const LOTE_ESTADOS = ["pendiente", "en_curso", "completado"];
 
 async function enrichLotes(rows) {
@@ -2232,8 +2253,59 @@ async function enrichLotes(rows) {
   return rows.map((row) => ({
     ...row,
     marca_nombre: brandById.get(Number(row.marca_id)) || `Marca ${row.marca_id}`,
-    usuario_nombre: userById.get(Number(row.usuario_id)) || `Usuario ${row.usuario_id}`
+    usuario_nombre: row.usuario_id ? userById.get(Number(row.usuario_id)) || `Usuario ${row.usuario_id}` : null
   }));
+}
+
+async function handleReadGeneralLoteAccumulations(request, response) {
+  try {
+    if (!requireAdministrator(request, response)) return;
+    const allRecords = await selectAllDashboardRows("registros_tareas", { optional: true });
+    const records = allRecords.filter((row) => isGeneralLoteCode(row.dato_extra || row.lote));
+    const userIds = [...new Set(records.map((row) => Number(row.usuario_id || row.trabajador_id)).filter(Boolean))];
+    const taskIds = [...new Set(records.map((row) => Number(row.tarea_id)).filter(Boolean))];
+    const taskTable = await getTaskTableName();
+    const [usersResult, tasksResult] = await Promise.all([
+      userIds.length ? supabase.from("usuarios").select("id,nombre,email").in("id", userIds) : Promise.resolve({ data: [] }),
+      taskIds.length ? supabase.from(taskTable).select("*").in("id", taskIds) : Promise.resolve({ data: [] })
+    ]);
+    if (usersResult.error) throw usersResult.error;
+    if (tasksResult.error) throw tasksResult.error;
+    const users = new Map((usersResult.data || []).map((item) => [Number(item.id), item.nombre || item.email]));
+    const tasks = new Map((tasksResult.data || []).map((item) => [Number(item.id), taskTitle(item)]));
+    const grouped = new Map();
+    records.forEach((record) => {
+      const workerId = Number(record.usuario_id || record.trabajador_id);
+      const taskId = Number(record.tarea_id);
+      if (!workerId || !taskId) return;
+      const key = `${workerId}:${taskId}`;
+      const date = String(record.fecha_registro || record.created_at || "");
+      const current = grouped.get(key) || {
+        trabajador_id: workerId,
+        trabajador_nombre: users.get(workerId) || `Usuario ${workerId}`,
+        tarea_id: taskId,
+        tarea_nombre: tasks.get(taskId) || `Tarea ${taskId}`,
+        cantidad_acumulada: 0,
+        registros: 0,
+        ultima_fecha: ""
+      };
+      current.cantidad_acumulada += Number(record.cantidad || 0);
+      current.registros += 1;
+      if (date > current.ultima_fecha) current.ultima_fecha = date;
+      grouped.set(key, current);
+    });
+    const acumulados = [...grouped.values()].sort((a, b) => (
+      b.cantidad_acumulada - a.cantidad_acumulada || a.trabajador_nombre.localeCompare(b.trabajador_nombre)
+    ));
+    response.setHeader("cache-control", "no-store, no-cache, must-revalidate");
+    sendJson(response, 200, {
+      codigo_lote: LOTE_GENERAL_CODE,
+      cantidad_total: acumulados.reduce((total, item) => total + item.cantidad_acumulada, 0),
+      acumulados
+    });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message || "No se pudo cargar el acumulado del Lote general." });
+  }
 }
 
 async function handleReadLotes(request, response) {
@@ -2267,6 +2339,7 @@ function validateLotePayload(body) {
   const usuarioId = Number(body.usuario_id);
   const estado = String(body.estado || "pendiente").trim().toLowerCase();
   if (!codigoLote) throw invalidLote("El codigo de lote es obligatorio.");
+  if (isGeneralLoteCode(codigoLote)) throw invalidLote("El codigo LOTE GENERAL esta reservado por el sistema.");
   if (!Number.isInteger(cantidadLote) || cantidadLote < 0) {
     throw invalidLote("La cantidad del lote debe ser un numero entero mayor o igual a cero.");
   }
@@ -2354,6 +2427,12 @@ async function handleCreateLote(request, response) {
 async function handleUpdateLote(request, response, loteId) {
   try {
     if (!requireAdministrator(request, response)) return;
+    const currentResult = await supabase.from("lotes").select("id,es_general").eq("id", loteId).maybeSingle();
+    if (currentResult.error) throw currentResult.error;
+    if (currentResult.data?.es_general) {
+      sendJson(response, 403, { error: "El Lote general es administrado por el sistema y no se puede editar." });
+      return;
+    }
     const body = JSON.parse((await readBody(request)) || "{}");
     const payload = validateLotePayload(body);
     const brandResult = await supabase.from("marcas").select("id").eq("id", payload.marca_id).maybeSingle();
@@ -2384,6 +2463,12 @@ async function handleUpdateLote(request, response, loteId) {
 async function handleDeleteLote(request, response, loteId) {
   try {
     if (!requireAdministrator(request, response)) return;
+    const currentResult = await supabase.from("lotes").select("id,es_general").eq("id", loteId).maybeSingle();
+    if (currentResult.error) throw currentResult.error;
+    if (currentResult.data?.es_general) {
+      sendJson(response, 403, { error: "El Lote general no se puede eliminar." });
+      return;
+    }
     const result = await supabase.from("lotes").delete().eq("id", loteId).select("id").maybeSingle();
     if (result.error?.code === "23503") {
       sendJson(response, 409, { error: "No se puede eliminar: hay registros relacionados con este lote." });
@@ -3485,7 +3570,7 @@ async function handleReadOperationalRecords(request, response) {
     if (/^\d{4}-\d{2}-\d{2}$/.test(fromDate)) query = query.gte("fecha_registro", fromDate);
     if (/^\d{4}-\d{2}-\d{2}$/.test(toDate)) query = query.lte("fecha_registro", toDate);
     if (search && source === "normal") {
-      query = query.or(`observacion.ilike.%${search}%,numero_guia.ilike.%${search}%,dato_extra.ilike.%${search}%`);
+      query = query.or(`observacion.ilike.%${search}%,detalle_guia.ilike.%${search}%,numero_guia.ilike.%${search}%,dato_extra.ilike.%${search}%`);
     }
     const start = (page - 1) * pageSize;
     const ascending = order === "asc";
@@ -3513,7 +3598,7 @@ async function handleReadOperationalRecords(request, response) {
       const [allUsersResult, allTasks, lotesResult, catalogRecordRows] = await Promise.all([
         supabase.from("usuarios").select("id,nombre,email,rol,activo").order("nombre", { ascending: true }),
         selectTasks(),
-        supabase.from("lotes").select("codigo_lote").order("codigo_lote", { ascending: true }),
+        supabase.from("lotes").select("codigo_lote,es_general").order("codigo_lote", { ascending: true }),
         selectAllDashboardRows(table)
       ]);
       if (allUsersResult.error) throw allUsersResult.error;
@@ -3618,9 +3703,26 @@ async function handleCreateActivityLog(request, response) {
     const singleGuideNumber = String(body.numero_guia || "").trim();
     // Las tareas sin cantidad que repartir mandan una sola marca en lugar de la
     // distribucion por marcas.
-    const singleBrandId = nullableNumber(body.marca_id);
+    let singleBrandId = nullableNumber(body.marca_id);
     const lote = String(body.lote || "").trim().toUpperCase();
     const tipoEtiquetado = normalizeHangtag(body.tipo_etiquetado);
+    if (isGeneralLoteCode(lote) && normalizeRole(session.rol) !== "operante") {
+      sendJson(response, 403, { error: "Solo los operantes pueden acumular cantidades en el Lote general." });
+      return;
+    }
+    if (isGeneralLoteCode(lote)) {
+      const generalLoteResult = await supabase
+        .from("lotes")
+        .select("marca_id,es_general")
+        .eq("es_general", true)
+        .maybeSingle();
+      if (generalLoteResult.error) throw generalLoteResult.error;
+      if (!generalLoteResult.data) {
+        sendJson(response, 503, { error: "Falta aplicar la migracion del Lote general en Supabase." });
+        return;
+      }
+      singleBrandId = Number(generalLoteResult.data.marca_id) || null;
+    }
     // Si la tarea pide lote, la marca llega derivada del lote elegido (ver
     // LoteField en el frontend) aunque la tarea no tenga "requiere_marca"
     // marcado por separado.
@@ -3762,6 +3864,7 @@ async function handleCreateActivityLog(request, response) {
             cantidad: item.cantidad,
             numero_guia: item.numero_guia,
             tienda_id: item.tienda_id,
+            detalle_guia: item.detalle,
             puntaje: index === 0 ? payload.puntaje : 0
           }))
       : [payload];
@@ -5566,6 +5669,11 @@ export async function handleRequest(request, response, { serveFiles = true } = {
 
   if (request.url?.startsWith("/api/stores") && request.method === "POST") {
     await handleCreateStore(request, response);
+    return;
+  }
+
+  if (request.url?.startsWith("/api/lotes/general") && request.method === "GET") {
+    await handleReadGeneralLoteAccumulations(request, response);
     return;
   }
 

@@ -201,6 +201,26 @@ test("clasifica operantes activos con y sin registro en cada turno", async () =>
   assert.deepEqual(afternoon.map((row) => [row.nombre, row.cumplio]), [["Ana", false], ["Luis", true]]);
 });
 
+test("excluye el Lote general del reporte de cumplimiento", async () => {
+  const db = fakeDatabase({
+    usuarios: [
+      { id: 1, nombre: "Ana", email: "ana@example.com", rol: "operante", activo: true }
+    ],
+    registros_tareas: [
+      {
+        id: 10,
+        usuario_id: 1,
+        fecha_registro: "2026-08-04",
+        created_at: "2026-08-04T15:00:00Z",
+        dato_extra: "LOTE GENERAL"
+      }
+    ]
+  });
+  const config = normalizeActivityReportConfig({ destinatarios: [], hora_manana: "12:00", hora_tarde: "18:00" });
+  const morning = await readActivityCompliance(db, "2026-08-04", "manana", config);
+  assert.deepEqual(morning.map((row) => [row.nombre, row.registros, row.cumplio]), [["Ana", 0, false]]);
+});
+
 test("respeta la seleccion de operantes cuando incluir_todos_activos es false", async () => {
   const db = fakeDatabase({
     usuarios: [

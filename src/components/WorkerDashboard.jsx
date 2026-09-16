@@ -78,6 +78,10 @@ function taskSplitsQuantity(task) {
   return ["cantidad", "tiempo"].includes(recordCaptureType(task));
 }
 
+function isGeneralLote(lote) {
+  return Boolean(lote?.es_general) || String(lote?.codigo_lote || "").trim().toUpperCase() === "LOTE GENERAL";
+}
+
 function emptyRecord() {
   return {
     taskKey: "",
@@ -123,7 +127,9 @@ function RegisterActivity({ user }) {
   const tasks = data.tasks || [];
   const brands = data.brands || [];
   const stores = data.stores || [];
-  const lotes = data.lotes || [];
+  const lotes = (data.lotes || []).filter((lote) => (
+    normalizeRole(user?.rol) === "operante" || !isGeneralLote(lote)
+  ));
   const draftKey = `worker-draft:${user?.id || "unknown"}`;
   const [records, setRecords] = useSessionState(`${draftKey}:records`, () => [emptyRecord()]);
   const [status, setStatus] = useState(null);
@@ -207,7 +213,8 @@ function RegisterActivity({ user }) {
       ? record.guias.map((item) => ({
           numero_guia: String(item.numero_guia || "").trim(),
           cantidad: Number(item.cantidad),
-          tienda_id: item.tienda_id ? Number(item.tienda_id) : null
+          tienda_id: item.tienda_id ? Number(item.tienda_id) : null,
+          detalle: String(item.detalle || "").trim() || null
         }))
       : [];
     // La marca siempre es un unico valor por registro; ya no se reparte la
@@ -577,7 +584,12 @@ function DynamicRecordFields({ record, task, brands, stores, lotes, onChange }) 
         {usesGuideBreakdown ? <GuideFields record={record} stores={stores} onChange={onChange} /> : null}
         {flags.lote ? <LoteField record={record} task={task} lotes={lotes} onChange={onChange} /> : null}
         <OptionalContextFields record={record} stores={stores} onChange={onChange} showStore={usesStore && !record.usaGuias} />
-        <TextArea label="Detalle" value={record.detalle} onChange={(detalle) => onChange({ detalle })} placeholder="Comentarios opcionales" />
+        <TextArea
+          label={usesGuideBreakdown && record.usaGuias ? "Detalles generales" : "Detalle"}
+          value={record.detalle}
+          onChange={(detalle) => onChange({ detalle })}
+          placeholder="Comentarios opcionales"
+        />
       </div>
     );
   }
@@ -600,7 +612,12 @@ function DynamicRecordFields({ record, task, brands, stores, lotes, onChange }) 
         {usesGuideBreakdown ? <GuideFields record={record} stores={stores} onChange={onChange} /> : null}
         {flags.lote ? <LoteField record={record} task={task} lotes={lotes} onChange={onChange} /> : null}
         <OptionalContextFields record={record} stores={stores} onChange={onChange} showStore={usesStore && !record.usaGuias} />
-        <TextArea label="Detalle" value={record.detalle} onChange={(detalle) => onChange({ detalle })} placeholder="Comentarios opcionales" />
+        <TextArea
+          label={usesGuideBreakdown && record.usaGuias ? "Detalles generales" : "Detalle"}
+          value={record.detalle}
+          onChange={(detalle) => onChange({ detalle })}
+          placeholder="Comentarios opcionales"
+        />
       </div>
     );
   }
@@ -690,7 +707,8 @@ function LoteField({ record, task, lotes, onChange }) {
   // por separado cuando tiene lote.
   const labelingTask = normalizeText(getTaskTitle(task)) === "etiquetado";
   const availableLotes = (lotes || []).filter((lote) => (
-    labelingTask ? lote.estado === "en_curso" : ["pendiente", "en_curso"].includes(lote.estado)
+    isGeneralLote(lote)
+    || (labelingTask ? lote.estado === "en_curso" : ["pendiente", "en_curso"].includes(lote.estado))
   ));
   return (
     <SelectInput
@@ -702,7 +720,10 @@ function LoteField({ record, task, lotes, onChange }) {
       }}
       options={[
         { value: "", label: availableLotes.length ? "Selecciona un lote" : "No hay lotes disponibles" },
-        ...availableLotes.map((lote) => ({ value: lote.codigo_lote, label: `${lote.codigo_lote} - ${lote.marca_nombre}` }))
+        ...availableLotes.map((lote) => ({
+          value: lote.codigo_lote,
+          label: isGeneralLote(lote) ? "Lote general - VARIOS" : `${lote.codigo_lote} - ${lote.marca_nombre}`
+        }))
       ]}
     />
   );
@@ -877,7 +898,7 @@ function TodayLeaderTaskCard({ user, onUse }) {
 
 const WORKER_HISTORY_EXPORT_COLUMNS = [
   "Trabajador", "Fecha", "Hora", "Hora inicio", "Hora fin", "Tarea", "Cantidad", "Tiempo (min)", "Turno",
-  "Cumplimiento", "Puntos", "Tienda", "Guia", "Lote", "Marcas", "Detalle"
+  "Cumplimiento", "Puntos", "Tienda", "Guia", "Lote", "Marcas", "Detalle de guía", "Detalles generales"
 ];
 
 export function WorkerHistory({ user, allWorkers = false }) {
@@ -951,7 +972,8 @@ function AllWorkersPaginatedHistory({ user }) {
       Guia: log.numero_guia || "",
       Lote: log.lote || "",
       Marcas: (log.marcas || []).map((item) => `${item.marca_nombre}: ${item.cantidad}`).join(", "),
-      Detalle: log.detalle || ""
+      "Detalle de guía": log.detalle_guia || "",
+      "Detalles generales": log.detalle || ""
     };
   });
   const totalPages = Math.max(1, Math.ceil(Number(data.total || 0) / pageSize));
@@ -962,7 +984,8 @@ function AllWorkersPaginatedHistory({ user }) {
   }
 
   function exportCurrentPage() {
-    downloadCsv(`registros-operantes-pagina-${page}-${todayLimaISO()}.csv`, WORKER_HISTORY_EXPORT_COLUMNS, rows);
+    const exportRows = rows.filter((row) => String(row.Lote || "").trim().toUpperCase() !== "LOTE GENERAL");
+    downloadCsv(`registros-operantes-pagina-${page}-${todayLimaISO()}.csv`, WORKER_HISTORY_EXPORT_COLUMNS, exportRows);
   }
 
   return (
@@ -1069,7 +1092,7 @@ function WorkerHistoryContent({ user }) {
     const taskName = taskNameById[log.tarea_id] || log.actividad_nombre || "";
     const term = normalizeText(search);
     return normalizeText(
-      [taskName, log.detalle, log.observacion, log.numero_guia, log.lote, storeNameById[log.tienda_id], log.encargado_nombre].join(" ")
+      [taskName, log.detalle, log.detalle_guia, log.observacion, log.numero_guia, log.lote, storeNameById[log.tienda_id], log.encargado_nombre].join(" ")
     ).includes(term);
   });
 
@@ -1096,12 +1119,14 @@ function WorkerHistoryContent({ user }) {
       Guia: log.numero_guia || "",
       Lote: log.lote || "",
       Marcas: (log.marcas || []).map((item) => `${item.marca_nombre}: ${item.cantidad}`).join(", "),
-      Detalle: log.detalle
+      "Detalle de guía": log.detalle_guia || "",
+      "Detalles generales": log.detalle || ""
     };
   });
 
   function exportToCsv() {
-    downloadCsv(`historial-actividad-${todayLimaISO()}.csv`, WORKER_HISTORY_EXPORT_COLUMNS, rows);
+    const exportRows = rows.filter((row) => String(row.Lote || "").trim().toUpperCase() !== "LOTE GENERAL");
+    downloadCsv(`historial-actividad-${todayLimaISO()}.csv`, WORKER_HISTORY_EXPORT_COLUMNS, exportRows);
   }
 
   return (

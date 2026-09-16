@@ -1,8 +1,8 @@
 import { Plus, Trash2 } from "lucide-react";
-import { Button, SelectInput, TextInput } from "./ui";
+import { Button, SelectInput, TextArea, TextInput } from "./ui";
 
 export function emptyGuideShare() {
-  return { numero_guia: "", cantidad: "", tienda_id: "" };
+  return { numero_guia: "", cantidad: "", tienda_id: "", detalle: "" };
 }
 
 export function guideTotal(items) {
@@ -59,6 +59,15 @@ export function GuideDistribution({ items, stores = [], onChange }) {
               ...stores.map((store) => ({ value: String(store.id), label: store.nombre }))
             ]}
           />
+          <div className="guide-share-detail">
+            <TextArea
+              label={`Detalle de la guía ${index + 1}`}
+              value={share.detalle || ""}
+              onChange={(detalle) => update(index, { detalle })}
+              placeholder="Comentarios opcionales de esta guía"
+              rows="2"
+            />
+          </div>
           <Button variant="ghost" icon={Trash2} onClick={() => remove(index)} disabled={shares.length === 1}>
             Quitar
           </Button>

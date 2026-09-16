@@ -1694,7 +1694,9 @@ function HistoryRow({ record, editable, busy, average, readonlyReason, onEdit, o
 function availableLotesForTask(lotes, task, brandId) {
   const labelingTask = normalizeText(getTaskTitle(task)) === "etiquetado";
   return (lotes || []).filter((lote) => (
-    (labelingTask ? lote.estado === "en_curso" : ["pendiente", "en_curso"].includes(lote.estado))
+    !lote.es_general
+    && String(lote.codigo_lote || "").trim().toUpperCase() !== "LOTE GENERAL"
+    && (labelingTask ? lote.estado === "en_curso" : ["pendiente", "en_curso"].includes(lote.estado))
     && (!brandId || Number(lote.marca_id) === Number(brandId))
   ));
 }

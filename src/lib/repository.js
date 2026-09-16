@@ -736,6 +736,18 @@ export async function listLotes() {
   return apiResult.lotes;
 }
 
+export async function listGeneralLoteAccumulations() {
+  const apiResult = await requestLocalApi("/api/lotes/general", {}, { requiredBackend: true });
+  if (!Array.isArray(apiResult?.acumulados)) {
+    throw new Error("No se pudo cargar el acumulado del Lote general.");
+  }
+  return {
+    codigo_lote: apiResult.codigo_lote || "LOTE GENERAL",
+    cantidad_total: Number(apiResult.cantidad_total || 0),
+    acumulados: apiResult.acumulados
+  };
+}
+
 export async function createLote(payload) {
   const apiResult = await requestLocalApi("/api/lotes", {
     method: "POST",
@@ -1173,6 +1185,10 @@ function normalizeActivityLog(row) {
   return normalized;
 }
 
+function excludesGeneralLote(row) {
+  return String(row?.lote || row?.dato_extra || "").trim().toUpperCase() !== "LOTE GENERAL";
+}
+
 async function listActivityLogsForResource(resourceName, userColumn, workerId) {
   for (const orderColumn of ["fecha_registro", "created_at", null]) {
     let query = db().from(resourceName).select("*").eq(userColumn, workerId);
@@ -1200,7 +1216,7 @@ export async function listWorkerActivityLogs(workerId) {
 
 export async function listAllActivityLogs() {
   const apiResult = await requestLocalApi("/api/activity-logs");
-  if (apiResult?.logs) return apiResult.logs.map(normalizeActivityLog);
+  if (apiResult?.logs) return apiResult.logs.filter(excludesGeneralLote).map(normalizeActivityLog);
 
   for (const resourceName of ["v_registro_actividades", "registros_tareas", "registro_actividades"]) {
     for (const orderColumn of ["fecha_registro", "created_at", null]) {
@@ -1219,7 +1235,7 @@ export async function listAllActivityLogs() {
         rows.push(...page);
         if (page.length < pageSize) break;
       }
-      if (!failed) return rows.map(normalizeActivityLog);
+      if (!failed) return rows.filter(excludesGeneralLote).map(normalizeActivityLog);
     }
   }
   return [];

@@ -182,9 +182,10 @@ export async function readActivityCompliance(db, reportDate, shift, config) {
 
   const logsResult = await db
     .from("registros_tareas")
-    .select("id,usuario_id,fecha_registro,created_at")
+    .select("id,usuario_id,fecha_registro,created_at,dato_extra")
     .eq("fecha_registro", reportDate);
-  const logs = databaseError(logsResult, "No se pudieron consultar los registros de actividades.") || [];
+  const logs = (databaseError(logsResult, "No se pudieron consultar los registros de actividades.") || [])
+    .filter((log) => String(log.dato_extra || "").trim().toUpperCase() !== "LOTE GENERAL");
   const morningEnd = timeMinutes(config.hora_manana);
   const afternoonEnd = timeMinutes(config.hora_tarde);
   const counts = new Map();

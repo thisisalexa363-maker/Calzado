@@ -2400,6 +2400,7 @@ export default function FootwearDashboard() {
     CURRENT_LIMA_YEAR,
     ...yearsFromRows([
       ...(dashboardData?.activities || []),
+      ...(dashboardData?.generalLoteActivities || []),
       ...(dashboardData?.attendances || []),
       ...(dashboardData?.incidents || []),
       ...(dashboardData?.movements || []),
@@ -2409,6 +2410,7 @@ export default function FootwearDashboard() {
   ])].sort((a, b) => b - a), [dashboardData]);
   const globalPeriodRows = [
     ...(dashboardData?.activities || []),
+    ...(dashboardData?.generalLoteActivities || []),
     ...(dashboardData?.attendances || []),
     ...(dashboardData?.incidents || []),
     ...(dashboardData?.movements || []),
@@ -2496,6 +2498,14 @@ export default function FootwearDashboard() {
     && matchesGlobalWorker(row.workerId)
     && (!selectedProductionRoles.length || selectedProductionRoles.includes(workerById.get(Number(row.workerId))?.role))
     && ["operante", "lider de equipo"].includes(workerById.get(Number(row.workerId))?.role)
+    && (globalIncludeInactiveWorkers || workerById.get(Number(row.workerId))?.active)
+    && allowedTaskIds.has(row.taskId)
+  ));
+  const generalLoteDetailActivities = (dashboardData?.generalLoteActivities || []).filter((row) => (
+    matchesProductionDate(row.date)
+    && matchesGlobalWorker(row.workerId)
+    && (!selectedProductionRoles.length || selectedProductionRoles.includes(workerById.get(Number(row.workerId))?.role))
+    && workerById.get(Number(row.workerId))?.role === "operante"
     && (globalIncludeInactiveWorkers || workerById.get(Number(row.workerId))?.active)
     && allowedTaskIds.has(row.taskId)
   ));
@@ -2666,7 +2676,7 @@ export default function FootwearDashboard() {
   }).sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   const staticMonthlyTotal = staticMonthlyTasks.reduce((sum, month) => sum + month.value, 0);
   const taskVolumeTotal = staticTaskVolume.reduce((sum, item) => sum + item.value, 0);
-  const taskDetailRows = [...visibleActivities]
+  const taskDetailRows = [...visibleActivities, ...generalLoteDetailActivities]
     .filter((row) => row.source === "operante")
     .filter((row) => !detailTaskIds.length || detailTaskIds.includes(Number(row.taskId)))
     .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))

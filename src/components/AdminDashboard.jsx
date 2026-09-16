@@ -40,6 +40,7 @@ import {
   listGuias,
   listGuiaItemsForExport,
   listLogAsistencias,
+  listGeneralLoteAccumulations,
   listLotes,
   listOperationalRecords,
   listPenalizaciones,
@@ -143,7 +144,7 @@ const ADMIN_SECTION_HELP = {
   },
   Lotes: {
     title: "Lotes",
-    text: "Catálogo de lotes de mercadería: registra por separado el inicio y fin del clasificado, el inicio del etiquetado y su fecha de culminación."
+    text: "Catálogo de lotes de mercadería: registra las etapas de cada lote. La pestaña Lote general muestra un acumulado que otorga puntos normales, pero no participa en reportes, documentos, cálculos ni gráficas."
   },
   Guias: {
     title: "Guías",
@@ -347,7 +348,8 @@ function AdminOperationalRecordsTable({ source, title, catalogs }) {
     Guia: record.numero_guia || "",
     Tienda: record.tienda_nombre || "",
     Puntos: record.puntaje ?? "",
-    Detalle: record.detalle || record.observacion || ""
+    "Detalle de guía": record.detalle_guia || "",
+    "Detalles generales": record.detalle || record.observacion || ""
   });
   const totalPages = Math.max(1, Math.ceil(Number(data.total || 0) / pageSize));
 
@@ -4660,6 +4662,56 @@ function emptyLoteForm() {
 }
 
 function LotesPanel() {
+  const [view, setView] = useState("Inventario");
+  return (
+    <div className="stack">
+      <Tabs tabs={["Inventario", "Lote general"]} active={view} onChange={setView} />
+      {view === "Lote general" ? <GeneralLotePanel /> : <LotesInventoryPanel />}
+    </div>
+  );
+}
+
+function GeneralLotePanel() {
+  const { data, loading, error, reload } = useAsyncData(
+    listGeneralLoteAccumulations,
+    [],
+    { codigo_lote: "LOTE GENERAL", cantidad_total: 0, acumulados: [] }
+  );
+  const rows = (data.acumulados || []).map((item) => ({
+    Operante: item.trabajador_nombre,
+    Tarea: item.tarea_nombre,
+    "Cantidad acumulada": Number(item.cantidad_acumulada || 0).toLocaleString("es-PE"),
+    Registros: item.registros,
+    "Ultimo registro": formatDateLima(item.ultima_fecha)
+  }));
+  return (
+    <Panel
+      title="Lote general"
+      eyebrow="Acumulado aislado"
+      actions={<Button variant="secondary" icon={RefreshCcw} onClick={reload}>Actualizar</Button>}
+    >
+      <Alert>
+        En esta lista se muestra lo acumulado en el Lote general. Los registros otorgan puntos y son visibles en los
+        historiales y en el Detalle de Registro de Tareas, pero no se utilizan en gráficas, cálculos, reportes ni documentos.
+      </Alert>
+      <div className="metrics-grid lote-general-metrics">
+        <Metric label="Cantidad total acumulada" value={Number(data.cantidad_total || 0).toLocaleString("es-PE")} tone="accent" />
+        <Metric label="Operantes y tareas" value={rows.length} />
+      </div>
+      {loading ? <LoadingBlock label="Cargando acumulados..." /> : null}
+      {error ? <Alert type="error">{friendlyError(error)}</Alert> : null}
+      {!loading ? (
+        <DataTable
+          rows={rows}
+          columns={["Operante", "Tarea", "Cantidad acumulada", "Registros", "Ultimo registro"]}
+          empty="Todavia no hay cantidades acumuladas en el Lote general."
+        />
+      ) : null}
+    </Panel>
+  );
+}
+
+function LotesInventoryPanel() {
   const { data: lotes = [], setData: setLotes, loading, error, reload } = useAsyncData(listLotes, [], []);
   const { data: brands = [] } = useAsyncData(listBrands, [], []);
   const { data: users = [] } = useAsyncData(selectUsers, [], []);
@@ -4670,7 +4722,8 @@ function LotesPanel() {
   const [form, setForm] = useState(emptyLoteForm);
 
   const teamLeaders = users.filter((user) => normalizeRole(user.rol) === "lider de equipo" && boolValue(user.activo));
-  const selectedLote = lotes.find((lote) => String(lote.id) === String(selectedId));
+  const regularLotes = lotes.filter((lote) => !lote.es_general && String(lote.codigo_lote || "").trim().toUpperCase() !== "LOTE GENERAL");
+  const selectedLote = regularLotes.find((lote) => String(lote.id) === String(selectedId));
 
   useEffect(() => {
     if (!selectedLote) return;
@@ -4798,7 +4851,7 @@ function LotesPanel() {
     }
   }
 
-  const rows = lotes.map((lote) => {
+  const rows = regularLotes.map((lote) => {
     const classificationDays = loteClassificationDays(lote);
     const labelingDays = loteLabelingDays(lote);
     return {
@@ -4853,7 +4906,7 @@ function LotesPanel() {
               onChange={setSelectedId}
               options={[
                 { value: "", label: "Selecciona un lote" },
-                ...lotes.map((lote) => ({ value: String(lote.id), label: `${lote.codigo_lote} - ${lote.marca_nombre}` }))
+                ...regularLotes.map((lote) => ({ value: String(lote.id), label: `${lote.codigo_lote} - ${lote.marca_nombre}` }))
               ]}
             />
           ) : null}

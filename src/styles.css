@@ -4757,7 +4757,13 @@ tbody tr:hover {
 }
 
 .brand-share-row {
-  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.45fr) auto;
+  grid-template-columns: minmax(180px, 1fr) minmax(120px, 0.45fr) minmax(190px, 0.65fr) auto;
+  padding-top: 0.85rem;
+  border-top: 1px solid rgba(45, 212, 191, 0.14);
+}
+
+.guide-share-detail {
+  grid-column: 1 / -2;
 }
 
 .brand-total {
@@ -4877,6 +4883,10 @@ tbody tr:hover {
   .brand-distribution-header,
   .brand-share-row {
     grid-template-columns: 1fr;
+  }
+
+  .guide-share-detail {
+    grid-column: 1;
   }
 
   .training-course-card {
