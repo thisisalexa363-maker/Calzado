@@ -25,11 +25,25 @@ begin
   limit 1;
 
   if varios_id is null then
-    insert into public.marcas (nombre, activo)
-    values ('VARIOS', true)
+    -- Algunas instalaciones antiguas no tienen la columna marcas.activo.
+    -- Insertar solo el nombre funciona en ambos esquemas (cuando activo existe,
+    -- su valor por defecto es true).
+    insert into public.marcas (nombre)
+    values ('VARIOS')
     returning id into varios_id;
-  else
-    update public.marcas set activo = true where id = varios_id;
+  end if;
+
+  -- Si la instalacion si cuenta con marcas.activo, garantiza que VARIOS quede
+  -- disponible. SQL dinamico evita referenciar una columna inexistente.
+  if exists (
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'marcas'
+      and column_name = 'activo'
+  ) then
+    execute 'update public.marcas set activo = true where id = $1'
+      using varios_id;
   end if;
 
   select id

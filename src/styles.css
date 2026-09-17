@@ -169,9 +169,282 @@ h2 {
   backdrop-filter: blur(18px);
 }
 
+/* Login inmersivo: las frases son decorativas y no interfieren con el formulario. */
+.login-ambient {
+  position: fixed;
+  z-index: 1;
+  width: min(42vw, 620px);
+  aspect-ratio: 1;
+  border-radius: 50%;
+  opacity: 0.42;
+  filter: blur(85px);
+  pointer-events: none;
+}
+
+.login-ambient--teal {
+  top: -18%;
+  left: -10%;
+  background: rgba(45, 212, 191, 0.3);
+}
+
+.login-ambient--gold {
+  right: -12%;
+  bottom: -26%;
+  background: rgba(244, 183, 94, 0.25);
+}
+
+.login-motivation-cloud {
+  position: fixed;
+  z-index: 2;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.login-motivation-pill {
+  position: absolute;
+  top: var(--login-phrase-top);
+  left: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.62rem;
+  max-width: min(300px, 34vw);
+  padding: 0.72rem 1rem 0.72rem 0.78rem;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--phrase-accent, var(--gold)) 42%, transparent);
+  border-radius: 16px;
+  background:
+    linear-gradient(135deg, color-mix(in srgb, var(--phrase-accent, var(--gold)) 13%, transparent), transparent 58%),
+    linear-gradient(145deg, rgba(20, 43, 37, 0.9), rgba(7, 20, 17, 0.76));
+  color: #fff8eb;
+  font-size: clamp(0.72rem, 0.82vw, 0.88rem);
+  font-weight: 800;
+  letter-spacing: 0.018em;
+  line-height: 1.25;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.46);
+  box-shadow:
+    0 16px 42px rgba(0, 0, 0, 0.28),
+    0 0 24px color-mix(in srgb, var(--phrase-accent, var(--gold)) 10%, transparent),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(16px) saturate(135%);
+  will-change: transform;
+  animation: login-phrase-travel var(--login-phrase-duration) linear var(--login-phrase-delay) infinite;
+}
+
+.login-motivation-pill::before {
+  display: grid;
+  width: 27px;
+  height: 27px;
+  flex: 0 0 auto;
+  border: 1px solid color-mix(in srgb, var(--phrase-accent, var(--gold)) 46%, transparent);
+  border-radius: 9px;
+  place-items: center;
+  background: color-mix(in srgb, var(--phrase-accent, var(--gold)) 14%, rgba(8, 23, 19, 0.9));
+  color: var(--phrase-accent, var(--gold));
+  content: "“";
+  font-family: Georgia, serif;
+  font-size: 1.35rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow: inset 0 0 12px color-mix(in srgb, var(--phrase-accent, var(--gold)) 10%, transparent);
+}
+
+.login-motivation-pill::after {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -45%;
+  width: 28%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.12), transparent);
+  content: "";
+  pointer-events: none;
+  transform: skewX(-18deg);
+  animation: login-phrase-sheen 5.5s ease-in-out infinite;
+}
+
+.login-motivation-pill i {
+  position: absolute;
+  top: 7px;
+  right: 8px;
+  width: 5px;
+  height: 5px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--phrase-accent, var(--gold));
+  box-shadow: 0 0 10px var(--phrase-accent, var(--gold));
+}
+
+.login-motivation-pill:nth-child(3n + 1) { --phrase-accent: #f4b75e; }
+.login-motivation-pill:nth-child(3n + 2) { --phrase-accent: #5eead4; }
+.login-motivation-pill:nth-child(3n) { --phrase-accent: #a7f3d0; }
+
+@keyframes login-phrase-sheen {
+  0%, 58% { left: -45%; opacity: 0; }
+  68% { opacity: 1; }
+  88%, 100% { left: 125%; opacity: 0; }
+}
+
+@keyframes login-phrase-travel {
+  0% {
+    opacity: 0;
+    transform: translate3d(-120%, 5px, 0);
+  }
+
+  8%,
+  90% {
+    opacity: 0.82;
+  }
+
+  48% {
+    transform: translate3d(calc(50vw - 50%), -7px, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(100vw + 20%), 4px, 0);
+  }
+}
+
+@keyframes login-phrase-travel-mobile {
+  0% {
+    opacity: 0;
+    transform: translate3d(-125%, 3px, 0);
+  }
+
+  7%,
+  91% {
+    opacity: 0.94;
+  }
+
+  50% {
+    transform: translate3d(calc(50vw - 50%), -4px, 0);
+  }
+
+  100% {
+    opacity: 0;
+    transform: translate3d(calc(100vw + 24%), 3px, 0);
+  }
+}
+
+.login-card {
+  z-index: 4;
+  gap: 0.78rem;
+  width: min(470px, 92vw);
+  padding: clamp(1.35rem, 3vw, 2rem);
+  border-color: rgba(94, 234, 212, 0.28);
+  border-radius: 24px;
+  background:
+    linear-gradient(145deg, rgba(25, 42, 37, 0.8), rgba(8, 18, 16, 0.7)),
+    rgba(13, 21, 19, 0.68);
+  box-shadow:
+    0 28px 90px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(244, 183, 94, 0.06) inset,
+    0 1px 0 rgba(255, 255, 255, 0.1) inset;
+  backdrop-filter: blur(20px) saturate(118%);
+}
+
+.login-card::before {
+  position: absolute;
+  top: 0;
+  right: 17%;
+  left: 17%;
+  height: 2px;
+  border-radius: 0 0 999px 999px;
+  background: linear-gradient(90deg, transparent, var(--gold), var(--accent), transparent);
+  content: "";
+}
+
+.login-card-topline {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 0.72rem;
+  margin-bottom: 0.45rem;
+  padding-bottom: 1rem;
+  border-bottom: 1px solid rgba(222, 238, 226, 0.12);
+}
+
+.login-brand-copy {
+  display: grid;
+  gap: 0.08rem;
+}
+
+.login-brand-copy strong {
+  color: var(--text);
+  font-size: 1rem;
+}
+
+.login-brand-copy span {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.login-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.34rem 0.56rem;
+  border: 1px solid rgba(45, 212, 191, 0.22);
+  border-radius: 999px;
+  background: rgba(45, 212, 191, 0.08);
+  color: #8af4df;
+  font-size: 0.66rem;
+  font-weight: 800;
+}
+
+.login-status i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #34d399;
+  box-shadow: 0 0 10px #34d399;
+}
+
+.login-card .brand-mark {
+  width: 46px;
+  height: 46px;
+  margin: 0;
+  border-radius: 14px;
+}
+
+.login-card h1 {
+  margin: -0.15rem 0 0;
+  font-size: clamp(1.65rem, 4vw, 2.15rem);
+  letter-spacing: -0.035em;
+}
+
+.login-card .login-form .btn {
+  min-height: 50px;
+  margin-top: 0.2rem;
+  border-radius: 13px;
+  box-shadow: 0 12px 28px rgba(45, 212, 191, 0.16);
+}
+
+.login-card .input-with-icon {
+  min-height: 52px;
+  border-radius: 13px;
+}
+
+.login-card-footnote {
+  margin: 0.25rem 0 0;
+  color: var(--muted);
+  font-size: 0.7rem;
+  line-height: 1.4;
+  text-align: center;
+}
+
+.login-card-footnote span {
+  color: var(--gold);
+  font-size: 0.55rem;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .login-background-video {
     display: none;
+  }
+
+  .login-motivation-pill {
+    animation: none;
   }
 }
 
@@ -5115,4 +5388,173 @@ tbody tr:hover {
 .admin-history-only .group-hero,
 .admin-history-only .group-form-panel {
   display: none;
+}
+
+@media (max-width: 900px) {
+  .login-motivation-pill:nth-child(n + 8) {
+    display: none;
+  }
+
+  .login-motivation-pill {
+    max-width: 42vw;
+    opacity: 0.58;
+  }
+
+}
+
+@media (max-width: 560px) {
+  .login-screen {
+    min-height: 100svh;
+    padding: 4.8rem 0.85rem 4.5rem;
+    overflow-y: auto;
+  }
+
+  .login-overlay {
+    background:
+      linear-gradient(180deg, rgba(4, 8, 7, 0.92), rgba(9, 21, 20, 0.78) 52%, rgba(12, 11, 7, 0.9)),
+      linear-gradient(0deg, rgba(45, 212, 191, 0.08), rgba(244, 183, 94, 0.06));
+  }
+
+  .login-card {
+    width: 100%;
+    padding: 1.2rem;
+    border-radius: 20px;
+  }
+
+  .login-motivation-cloud {
+    z-index: 5;
+  }
+
+  .login-card-topline {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .login-status {
+    grid-column: 1 / -1;
+    width: max-content;
+    margin-left: 3.65rem;
+    margin-top: -0.55rem;
+  }
+
+  .login-motivation-pill {
+    max-width: 54vw;
+    padding: 0.56rem 0.72rem 0.56rem 0.58rem;
+    border-color: color-mix(in srgb, var(--phrase-accent, var(--gold)) 58%, transparent);
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--phrase-accent, var(--gold)) 17%, transparent), transparent 62%),
+      linear-gradient(145deg, rgba(10, 30, 26, 0.97), rgba(13, 38, 32, 0.94));
+    color: #fff4df;
+    font-size: 0.72rem;
+    box-shadow:
+      0 12px 30px rgba(0, 0, 0, 0.48),
+      0 0 20px color-mix(in srgb, var(--phrase-accent, var(--gold)) 12%, transparent);
+    animation-name: login-phrase-travel-mobile;
+  }
+
+  .login-motivation-pill::before {
+    width: 24px;
+    height: 24px;
+    border-radius: 8px;
+    font-size: 1.15rem;
+  }
+
+  .login-motivation-pill:nth-child(1) { --login-phrase-top: 3% !important; }
+  .login-motivation-pill:nth-child(2) { --login-phrase-top: 21% !important; }
+  .login-motivation-pill:nth-child(3) { --login-phrase-top: 43% !important; }
+  .login-motivation-pill:nth-child(4) { --login-phrase-top: 66% !important; }
+  .login-motivation-pill:nth-child(5) { --login-phrase-top: 88% !important; }
+
+  .login-motivation-pill:nth-child(n + 6) {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) and (prefers-reduced-motion: reduce) {
+  .login-motivation-pill {
+    left: 0.75rem;
+    opacity: 0.82;
+    animation: none;
+  }
+}
+
+/* Frases flotantes: estilo editorial ligero y elegante. */
+.login-motivation-pill {
+  gap: 0.58rem;
+  max-width: min(360px, 38vw);
+  padding: 0.65rem 1.08rem 0.65rem 0.78rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background:
+    linear-gradient(105deg, rgba(255, 255, 255, 0.09), transparent 42%),
+    rgba(8, 24, 20, 0.68);
+  color: rgba(255, 250, 239, 0.96);
+  font-size: clamp(0.75rem, 0.85vw, 0.92rem);
+  font-weight: 720;
+  letter-spacing: 0.01em;
+  line-height: 1.2;
+  text-shadow: 0 1px 12px rgba(0, 0, 0, 0.58);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(14px) saturate(120%);
+}
+
+.login-motivation-pill::before {
+  display: inline-grid;
+  width: 23px;
+  height: 23px;
+  flex: 0 0 auto;
+  border: 0;
+  border-radius: 50%;
+  place-items: center;
+  background: rgba(255, 255, 255, 0.07);
+  color: var(--phrase-accent, var(--gold));
+  content: "\2726";
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--phrase-accent, var(--gold)) 32%, transparent),
+    0 0 18px color-mix(in srgb, var(--phrase-accent, var(--gold)) 16%, transparent);
+}
+
+.login-motivation-pill::after {
+  top: auto;
+  right: auto;
+  bottom: 0;
+  left: 14%;
+  width: 72%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--phrase-accent, var(--gold)), transparent);
+  opacity: 0.72;
+  transform: none;
+  animation: none;
+}
+
+.login-motivation-pill i {
+  display: none;
+}
+
+@media (max-width: 560px) {
+  .login-motivation-pill {
+    max-width: 68vw;
+    gap: 0.46rem;
+    padding: 0.55rem 0.82rem 0.55rem 0.58rem;
+    border-color: rgba(255, 255, 255, 0.26);
+    background:
+      linear-gradient(105deg, color-mix(in srgb, var(--phrase-accent, var(--gold)) 10%, transparent), transparent 46%),
+      rgba(6, 24, 20, 0.88);
+    color: #fffaf0;
+    font-size: 0.73rem;
+    box-shadow:
+      0 10px 28px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.13);
+  }
+
+  .login-motivation-pill::before {
+    width: 21px;
+    height: 21px;
+    font-size: 0.7rem;
+  }
 }

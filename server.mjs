@@ -5209,6 +5209,138 @@ async function handleCancelLiveGroupLeaderActivity(request, response, activityId
   }
 }
 
+async function handleReadIncidentTasks(request, response) {
+  try {
+    if (!requireSessionRole(request, response, ["administrador"])) return;
+    const result = await supabase.from("tarea_error").select("id,nombre,activo").order("nombre", { ascending: true });
+    if (result.error) throw result.error;
+    sendJson(response, 200, { tasks: result.data || [] });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message || "No se pudieron cargar las tareas de incidencias." });
+  }
+}
+
+async function handleCreateIncidentTask(request, response) {
+  try {
+    if (!requireSessionRole(request, response, ["administrador"])) return;
+    const body = JSON.parse((await readBody(request)) || "{}");
+    const nombre = String(body.nombre || "").trim();
+    if (!nombre) {
+      sendJson(response, 400, { error: "El nombre del posible error es obligatorio." });
+      return;
+    }
+
+    const existingResult = await supabase.from("tarea_error").select("id,nombre,activo");
+    if (existingResult.error) throw existingResult.error;
+    const duplicate = (existingResult.data || []).find((task) => String(task.nombre || "").trim().toLowerCase() === nombre.toLowerCase());
+    if (duplicate) {
+      sendJson(response, 409, { error: "Ya existe un posible error con ese nombre." });
+      return;
+    }
+
+    const newTask = {
+      nombre,
+      activo: true,
+      unidad_medida: "Ninguna",
+      fecha_creacion: currentLimaDate(),
+      tipo_tarea: "General",
+      requiere_marca: false,
+      requiere_tiempo: false,
+      requiere_lote: false,
+      requiere_numero_guia: false,
+      requiere_hangtag: false,
+      requiere_tienda: false,
+      es_operativa: false
+    };
+    let result = await supabase.from("tarea_error").insert(newTask).select("id,nombre,activo").single();
+    if (isPrimaryKeySequenceConflict(result.error)) {
+      result = await supabase.from("tarea_error").insert({ id: await nextTableId("tarea_error", "id"), ...newTask }).select("id,nombre,activo").single();
+    }
+    if (result.error) throw result.error;
+    sendJson(response, 201, { task: result.data });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message || "No se pudo crear la tarea de incidencia." });
+  }
+}
+
+async function handleUpdateIncidentTask(request, response, taskId) {
+  try {
+    if (!requireSessionRole(request, response, ["administrador"])) return;
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      sendJson(response, 400, { error: "Tarea de incidencia no válida." });
+      return;
+    }
+    const body = JSON.parse((await readBody(request)) || "{}");
+    const nombre = String(body.nombre || "").trim();
+    if (!nombre) {
+      sendJson(response, 400, { error: "El nombre del posible error es obligatorio." });
+      return;
+    }
+
+    const existingResult = await supabase.from("tarea_error").select("id,nombre");
+    if (existingResult.error) throw existingResult.error;
+    const duplicate = (existingResult.data || []).find((task) => Number(task.id) !== taskId && String(task.nombre || "").trim().toLowerCase() === nombre.toLowerCase());
+    if (duplicate) {
+      sendJson(response, 409, { error: "Ya existe otro posible error con ese nombre." });
+      return;
+    }
+
+    const payload = { nombre };
+    if (body.activo !== undefined) payload.activo = Boolean(body.activo);
+    const result = await supabase.from("tarea_error").update(payload).eq("id", taskId).select("id,nombre,activo").maybeSingle();
+    if (result.error) throw result.error;
+    if (!result.data) {
+      sendJson(response, 404, { error: "La tarea de incidencia no existe." });
+      return;
+    }
+    sendJson(response, 200, { task: result.data });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message || "No se pudo actualizar la tarea de incidencia." });
+  }
+}
+
+async function handleDeleteIncidentTask(request, response, taskId) {
+  try {
+    if (!requireSessionRole(request, response, ["administrador"])) return;
+    if (!Number.isInteger(taskId) || taskId <= 0) {
+      sendJson(response, 400, { error: "Posible error no válido." });
+      return;
+    }
+
+    const relatedResult = await supabase
+      .from("registro_errores")
+      .select("id_error", { count: "exact", head: true })
+      .eq("tarea_error_id", taskId);
+    if (relatedResult.error) throw relatedResult.error;
+
+    if (Number(relatedResult.count || 0) > 0) {
+      const archivedResult = await supabase
+        .from("tarea_error")
+        .update({ activo: false })
+        .eq("id", taskId)
+        .select("id")
+        .maybeSingle();
+      if (archivedResult.error) throw archivedResult.error;
+      if (!archivedResult.data) {
+        sendJson(response, 404, { error: "El posible error no existe." });
+        return;
+      }
+      sendJson(response, 200, { deleted: false, archived: true });
+      return;
+    }
+
+    const deleteResult = await supabase.from("tarea_error").delete().eq("id", taskId).select("id").maybeSingle();
+    if (deleteResult.error) throw deleteResult.error;
+    if (!deleteResult.data) {
+      sendJson(response, 404, { error: "El posible error no existe." });
+      return;
+    }
+    sendJson(response, 200, { deleted: true, archived: false });
+  } catch (error) {
+    sendJson(response, 500, { error: error.message || "No se pudo eliminar el posible error." });
+  }
+}
+
 async function loadIncidentData() {
   const [usersResult, tasksResult, storesResult, areasResult, incidentsResult] = await Promise.all([
     supabase.from("usuarios").select("id,nombre,email,rol,activo").order("id", { ascending: true }),
@@ -5892,7 +6024,28 @@ export async function handleRequest(request, response, { serveFiles = true } = {
     return;
   }
 
+  const incidentTaskMatch = apiPath.match(/^\/api\/incident-tasks\/(\d+)\/?$/);
   const incidentMatch = apiPath.match(/^\/api\/incidents\/(\d+)\/?$/);
+
+  if (/^\/api\/incident-tasks\/?$/.test(apiPath) && request.method === "GET") {
+    await handleReadIncidentTasks(request, response);
+    return;
+  }
+
+  if (/^\/api\/incident-tasks\/?$/.test(apiPath) && request.method === "POST") {
+    await handleCreateIncidentTask(request, response);
+    return;
+  }
+
+  if (incidentTaskMatch && request.method === "PATCH") {
+    await handleUpdateIncidentTask(request, response, Number(incidentTaskMatch[1]));
+    return;
+  }
+
+  if (incidentTaskMatch && request.method === "DELETE") {
+    await handleDeleteIncidentTask(request, response, Number(incidentTaskMatch[1]));
+    return;
+  }
 
   if (request.url?.startsWith("/api/incidents/context") && request.method === "GET") {
     await handleIncidentContext(request, response);

@@ -14,18 +14,22 @@ import {
 } from "lucide-react";
 import {
   cancelGroupLeaderActivity,
+  createIncidentTask,
   createGroupLeaderRecord,
+  deleteIncidentTask,
   createIncident,
   deleteIncident,
   deleteGroupLeaderRecord,
   friendlyError,
   listLotes,
+  listIncidentTasks,
   loadIncidentContext,
   loadGroupLeaderContext,
   updateGroupLeaderActivity,
   updateGroupLeaderAverageReference,
   updateGroupLeaderRecord,
-  updateIncident
+  updateIncident,
+  updateIncidentTask
 } from "../lib/repository";
 import { formatDateLima, formatDateTimeLima, limaDateTimeToISO, todayLimaISO } from "../lib/dates";
 import { downloadCsv } from "../lib/csv";
@@ -657,12 +661,148 @@ var initialIncidentHistoryFilters = {
   storeId: "",
   search: ""
 };
+
+function IncidentTasksManager({ onChanged }) {
+  const { data: tasks, loading, error, reload } = useAsyncData(listIncidentTasks, [], []);
+  const [newName, setNewName] = useState("");
+  const [selectedId, setSelectedId] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editActive, setEditActive] = useState(true);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null);
+  const selectedTask = (tasks || []).find((task) => String(task.id) === String(selectedId));
+
+  useEffect(() => {
+    if (!selectedTask) {
+      setEditName("");
+      setEditActive(true);
+      return;
+    }
+    setEditName(selectedTask.nombre || "");
+    setEditActive(![false, "false", 0, "0"].includes(selectedTask.activo));
+  }, [selectedTask?.id]);
+
+  async function refreshCatalog() {
+    await reload();
+    if (onChanged) await onChanged();
+  }
+
+  async function handleCreate(event) {
+    event.preventDefault();
+    const nombre = newName.trim();
+    setStatus(null);
+    if (!nombre) {
+      setStatus({ type: "error", message: "Escribe el nombre del posible error." });
+      return;
+    }
+    setSaving(true);
+    try {
+      await createIncidentTask(nombre);
+      setNewName("");
+      setStatus({ type: "success", message: "Posible error agregado correctamente." });
+      await refreshCatalog();
+    } catch (err) {
+      setStatus({ type: "error", message: friendlyError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleUpdate(event) {
+    event.preventDefault();
+    if (!selectedTask) return;
+    const nombre = editName.trim();
+    setStatus(null);
+    if (!nombre) {
+      setStatus({ type: "error", message: "El nombre del posible error es obligatorio." });
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateIncidentTask(selectedTask.id, { nombre, activo: editActive });
+      setStatus({ type: "success", message: "Posible error actualizado correctamente." });
+      await refreshCatalog();
+    } catch (err) {
+      setStatus({ type: "error", message: friendlyError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function handleDelete() {
+    if (!selectedTask) return;
+    if (!window.confirm(`¿Eliminar "${selectedTask.nombre}" de la lista de posibles errores?`)) return;
+    setSaving(true);
+    setStatus(null);
+    try {
+      const result = await deleteIncidentTask(selectedTask.id);
+      setSelectedId("");
+      setStatus({
+        type: result.archived ? "warning" : "success",
+        message: result.archived
+          ? "El posible error tiene registros históricos, por eso fue desactivado y ya no aparecerá en nuevos registros."
+          : "Posible error eliminado definitivamente."
+      });
+      await refreshCatalog();
+    } catch (err) {
+      setStatus({ type: "error", message: friendlyError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <Panel title="Agregar posible error" eyebrow="Catálogo de errores">
+        <Alert>Los posibles errores activos aparecen en el selector de tarea del formulario Registrar error.</Alert>
+        <form className="form-grid" onSubmit={handleCreate}>
+          <TextInput label="Nombre del posible error" value={newName} onChange={setNewName} placeholder="Ej. Validación de mercadería" />
+          <div className="form-actions form-span">
+            <Button type="submit" icon={Save} loading={saving}>Agregar a la lista</Button>
+          </div>
+        </form>
+      </Panel>
+
+      <Panel title="Lista de posibles errores en tareas" eyebrow={`${(tasks || []).length} opciones registradas`} actions={<Button variant="secondary" icon={RefreshCcw} onClick={refreshCatalog}>Actualizar</Button>}>
+        {loading ? <LoadingBlock /> : null}
+        {error ? <Alert type="error">{error}</Alert> : null}
+        <form className="form-grid" onSubmit={handleUpdate}>
+          <SelectInput
+            label="Selecciona un posible error"
+            value={selectedId}
+            onChange={setSelectedId}
+            options={[
+              { value: "", label: "Selecciona un posible error" },
+              ...(tasks || []).map((task) => ({
+                value: String(task.id),
+                label: `${task.nombre}${[false, "false", 0, "0"].includes(task.activo) ? " (inactiva)" : ""}`
+              }))
+            ]}
+          />
+          {selectedTask ? (
+            <>
+              <TextInput label="Nombre" value={editName} onChange={setEditName} />
+              <CheckboxInput label="Visible al registrar errores" checked={editActive} onChange={setEditActive} />
+              <div className="form-actions form-span">
+                <Button type="button" variant="danger" icon={Trash2} loading={saving} onClick={handleDelete}>Eliminar</Button>
+                <Button type="submit" icon={Save} loading={saving}>Guardar cambios</Button>
+              </div>
+            </>
+          ) : null}
+        </form>
+        {status ? <Alert type={status.type}>{status.message}</Alert> : null}
+      </Panel>
+    </div>
+  );
+}
+
 export function IncidentDashboard({ user }) {
   const incidentDraftKey = `incident-draft:${user?.id || "admin"}`;
   const [form, setForm] = useSessionState(`${incidentDraftKey}:form`, initialIncidentForm);
   const [status, setStatus] = useState(null);
   const [saving, setSaving] = useState(false);
   const [editingId, setEditingId] = useSessionState(`${incidentDraftKey}:editing-id`, null);
+  const [section, setSection] = useState("Registrar error");
   const [historyFilters, setHistoryFilters] = useSessionState(`${incidentDraftKey}:history-filters`, initialIncidentHistoryFilters);
   const { data, loading, error, reload } = useAsyncData(
     loadIncidentContext,
@@ -674,6 +814,7 @@ export function IncidentDashboard({ user }) {
   const stores = data.stores || [];
   const areas = data.areas || [];
   const incidents = data.incidents || [];
+  const canManageIncidentTasks = !user || normalizeRole(user?.rol) === "administrador";
   const storeNames = useMemo(
     () => new Map(stores.map((store) => [Number(store.id), store.nombre])),
     [stores]
@@ -849,7 +990,13 @@ export function IncidentDashboard({ user }) {
     Turno: ["incidencia", "error"].includes(String(incident.turno || "").toLowerCase()) ? "incidencia" : incident.turno,
     _incident: incident
   }));
-  return /* @__PURE__ */ React.createElement("div", { className: "stack" }, /* @__PURE__ */ React.createElement(
+  if (canManageIncidentTasks && section === "Lista de posibles errores en tareas") {
+    return <div className="stack">
+      <Tabs tabs={["Registrar error", "Lista de posibles errores en tareas"]} active={section} onChange={setSection} />
+      <IncidentTasksManager onChanged={reload} />
+    </div>;
+  }
+  return /* @__PURE__ */ React.createElement("div", { className: "stack" }, canManageIncidentTasks ? /* @__PURE__ */ React.createElement(Tabs, { tabs: ["Registrar error", "Lista de posibles errores en tareas"], active: section, onChange: setSection }) : null, /* @__PURE__ */ React.createElement(
     Panel,
     {
       title: editingId ? `Editar error #${editingId}` : "Registrar error",

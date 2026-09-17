@@ -1032,7 +1032,7 @@ function VerticalBarChart({ id, data, ariaLabel, tone = "gold", unit = "", onSel
   );
 }
 
-function LineChart({ id, data, ariaLabel, valueFormatter = (value) => numberFormatter.format(value), tone = "blue", onSelect, selectedNames = [] }) {
+function LineChart({ id, data, ariaLabel, valueFormatter = (value) => numberFormatter.format(value), tone = "blue", onSelect, selectedNames = [], wide = false }) {
   const [tooltip, setTooltip] = useState(null);
   const [hoverIndex, setHoverIndex] = useState(null);
   const svgRef = useRef(null);
@@ -1041,12 +1041,12 @@ function LineChart({ id, data, ariaLabel, valueFormatter = (value) => numberForm
   const dense = data.length > 12;
   // En escritorio todos los puntos caben dentro del visual. En pantallas
   // angostas el CSS conserva un ancho legible y habilita desplazamiento local.
-  const width = Math.max(760, data.length * 42);
-  const height = 440;
-  const left = 72;
-  const right = 24;
-  const top = 34;
-  const bottom = 70;
+  const width = wide ? Math.max(1280, data.length * 72) : Math.max(760, data.length * 42);
+  const height = wide ? 360 : 440;
+  const left = wide ? 82 : 72;
+  const right = wide ? 32 : 24;
+  const top = wide ? 28 : 34;
+  const bottom = wide ? 58 : 70;
   const innerWidth = width - left - right;
   const innerHeight = height - top - bottom;
   const maximum = Math.max(...data.map((item) => item.value), 1) * 1.12;
@@ -2299,7 +2299,7 @@ export default function FootwearDashboard() {
   const [detailTaskIds, setDetailTaskIds] = useState([]);
   const [selectedTaskTypes, setSelectedTaskTypes] = useState([]);
   const [selectedIncidentTaskIds, setSelectedIncidentTaskIds] = useState([]);
-  const [qualityRecordKind, setQualityRecordKind] = useState("errores");
+  const [qualityRecordKind, setQualityRecordKind] = useState("todos");
   const [trainingCourseIds, setTrainingCourseIds] = useState([]);
   const [trainingStatuses, setTrainingStatuses] = useState([]);
   const [selectedMovementMonths, setSelectedMovementMonths] = useState([]);
@@ -3394,7 +3394,7 @@ export default function FootwearDashboard() {
                   title={`Top 5 Trabajadores por Producción · ${selectedMonthTitleLabel}`}
                   meta="Suma de puntos a favor"
                   icon={<StarIcon />}
-                  className="pbi-card--chart pbi-card--featured pbi-card--top-workers-compact pbi-card--span-8-centered"
+                  className="pbi-card--chart pbi-card--featured pbi-card--top-workers-compact pbi-card--span-12"
                 >
                   <VerticalBarChart
                     id="pbi-top-workers"
@@ -3411,6 +3411,7 @@ export default function FootwearDashboard() {
                   title={`Detalle de Registro de Tareas · ${selectedMonthTitleLabel}`}
                   meta={`${taskDetailRows.length} registros`}
                   className="pbi-card--table pbi-card--task-detail-scroll pbi-card--span-12"
+                  expandable
                 >
                   <div className="pbi-table-local-filter">
                     <MultiSlicer id="task-detail-tasks" label="Filtrar tarea en la tabla" options={operationalTaskOptions} selected={detailTaskIds} onChange={setDetailTaskIds} allLabel="Todas" />
@@ -3543,13 +3544,14 @@ export default function FootwearDashboard() {
                   id="pbi-monthly-tasks"
                   title="Volumen de Registros por Mes"
                   meta={`${CURRENT_LIMA_YEAR} · ${numberFormatter.format(staticMonthlyTotal)} registros`}
-                  className="pbi-card--chart pbi-card--span-6"
+                  className="pbi-card--chart pbi-card--monthly-compact pbi-card--span-12"
                 >
                   <LineChart
                     id="pbi-monthly-tasks"
                     data={staticMonthlyTasks}
                     ariaLabel={`Volumen mensual de registros operativos de ${CURRENT_LIMA_YEAR}, total ${staticMonthlyTotal}`}
                     tone="gold"
+                    wide
                   />
                 </Card>
 
@@ -3574,7 +3576,7 @@ export default function FootwearDashboard() {
                   id="pbi-rotation"
                   title={`Rotación de Personal por Mes · ${rotationYearTitleLabel}`}
                   meta={`${filteredRotation.reduce((sum, item) => sum + item.primary, 0)} ingresos · ${filteredRotation.reduce((sum, item) => sum + item.secondary, 0)} salidas`}
-                  className="pbi-card--chart pbi-card--span-4"
+                  className="pbi-card--chart pbi-card--span-6"
                 >
                   <ComparisonBars
                     data={filteredRotationWithHeadcount}
@@ -3608,7 +3610,7 @@ export default function FootwearDashboard() {
                   id="pbi-exit-reasons"
                   title={`Motivos de Salida del Personal · ${selectedMonthTitleLabel}`}
                   meta={`${EXIT_REASONS.reduce((sum, item) => sum + item.value, 0)} salidas`}
-                  className="pbi-card--chart pbi-card--span-4"
+                  className="pbi-card--chart pbi-card--span-6"
                 >
                   <DonutChart
                     id="pbi-exit-reasons"
@@ -3622,7 +3624,7 @@ export default function FootwearDashboard() {
                   id="pbi-warnings"
                   title="Amonestaciones por Trabajador"
                   meta={`${filteredWarnings.length} amonestaciones`}
-                  className="pbi-card--table pbi-card--span-4"
+                  className="pbi-card--table pbi-card--span-6"
                 >
                   <DataTable
                     caption="Detalle de amonestaciones registradas por trabajador"
@@ -3841,7 +3843,8 @@ export default function FootwearDashboard() {
                   id="pbi-training-history"
                   title={`Historial de Capacitaciones · Todo ${CURRENT_LIMA_YEAR}`}
                   meta={`${filteredTrainingHistory.length} asignaciones`}
-                  className="pbi-card--table pbi-card--span-8"
+                  className="pbi-card--table pbi-card--training-history pbi-card--span-8"
+                  expandable
                 >
                   <DataTable
                     caption="Historial de cursos y capacitaciones"

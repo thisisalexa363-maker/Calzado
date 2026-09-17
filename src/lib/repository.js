@@ -1275,6 +1275,40 @@ export async function listErrorTasks() {
   return result.data || [];
 }
 
+export async function listIncidentTasks() {
+  const apiResult = await requestLocalApi("/api/incident-tasks", {}, { requiredBackend: true });
+  if (!Array.isArray(apiResult?.tasks)) throw new Error("No se pudieron cargar las tareas de incidencias.");
+  return apiResult.tasks;
+}
+
+export async function createIncidentTask(nombre) {
+  const apiResult = await requestLocalApi("/api/incident-tasks", {
+    method: "POST",
+    body: JSON.stringify({ nombre })
+  }, { requiredBackend: true });
+  if (!apiResult?.task) throw new Error("No se pudo crear la tarea de incidencia.");
+  return apiResult.task;
+}
+
+export async function updateIncidentTask(taskId, changes) {
+  const apiResult = await requestLocalApi(`/api/incident-tasks/${encodeURIComponent(taskId)}`, {
+    method: "PATCH",
+    body: JSON.stringify(changes)
+  }, { requiredBackend: true });
+  if (!apiResult?.task) throw new Error("No se pudo actualizar la tarea de incidencia.");
+  return apiResult.task;
+}
+
+export async function deleteIncidentTask(taskId) {
+  const apiResult = await requestLocalApi(`/api/incident-tasks/${encodeURIComponent(taskId)}`, {
+    method: "DELETE"
+  }, { requiredBackend: true });
+  if (!apiResult || (!apiResult.deleted && !apiResult.archived)) {
+    throw new Error("No se pudo eliminar el posible error.");
+  }
+  return apiResult;
+}
+
 export async function loadIncidentContext() {
   const apiResult = await requestLocalApi("/api/incidents/context");
   if (!apiResult) throw new Error("El backend local debe estar activo para registrar errores.");

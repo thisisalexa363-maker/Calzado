@@ -926,7 +926,17 @@
 
 .pbi-card--top-workers-compact {
   min-height: 315px;
+  height: 430px;
+}
+
+.pbi-card--monthly-compact:not(.pbi-card--expanded) {
+  min-height: 350px;
   height: 350px;
+}
+
+.pbi-card--monthly-compact:not(.pbi-card--expanded) .pbi-chart,
+.pbi-card--monthly-compact:not(.pbi-card--expanded) .pbi-chart-frame {
+  min-height: 260px;
 }
 
 .pbi-card--attendance-compact {
@@ -1505,7 +1515,7 @@ h2.pbi-section-heading {
 
 .pbi-kpi--important > .pbi-kpi-label {
   padding: 0.65rem 0.8rem;
-  background: linear-gradient(135deg, var(--pbi-blue), #087f8c);
+  background: linear-gradient(135deg, #0a568f, #063762);
   font-size: clamp(0.9rem, 1.1vw, 1.12rem);
   font-weight: 900;
 }
@@ -3328,6 +3338,39 @@ h2.pbi-section-heading {
 
 #pbi-training-history .pbi-table-wrap {
   max-height: 360px;
+}
+
+.pbi-card--expanded.pbi-card--training-history .pbi-table-wrap,
+.pbi-card--expanded.pbi-card--task-detail-scroll .pbi-table-wrap {
+  width: 100%;
+  height: calc(100dvh - 260px);
+  min-height: 300px;
+  max-height: none;
+  overflow-x: scroll;
+  overflow-y: auto;
+  resize: none;
+  scrollbar-gutter: stable;
+  scrollbar-color: #0a568f #dce6ef;
+  scrollbar-width: auto;
+}
+
+.pbi-card--expanded.pbi-card--training-history .pbi-table-wrap::-webkit-scrollbar,
+.pbi-card--expanded.pbi-card--task-detail-scroll .pbi-table-wrap::-webkit-scrollbar {
+  width: 13px;
+  height: 13px;
+}
+
+.pbi-card--expanded.pbi-card--training-history .pbi-table-wrap::-webkit-scrollbar-track,
+.pbi-card--expanded.pbi-card--task-detail-scroll .pbi-table-wrap::-webkit-scrollbar-track {
+  border-radius: 999px;
+  background: #dce6ef;
+}
+
+.pbi-card--expanded.pbi-card--training-history .pbi-table-wrap::-webkit-scrollbar-thumb,
+.pbi-card--expanded.pbi-card--task-detail-scroll .pbi-table-wrap::-webkit-scrollbar-thumb {
+  border: 3px solid #dce6ef;
+  border-radius: 999px;
+  background: #0a568f;
 }
 
 #pbi-task-detail .pbi-table-wrap {
@@ -5572,4 +5615,356 @@ body[data-pbi-theme="light"] .dashboard-workspace {
 .pbi-dashboard-shell .pbi-date-preview > span {
   background: #ffffff;
   color: #163b61;
+}
+
+/* ==========================================================================
+   Renovación visual 2026: composición fluida, superficies más limpias y
+   tarjetas que aprovechan todo el ancho sin alterar datos ni interacciones.
+   ========================================================================== */
+
+.pbi-dashboard-shell {
+  --pbi-radius: 16px;
+  --pbi-shadow: 0 14px 38px rgba(0, 0, 0, 0.26);
+  border-color: rgba(94, 234, 212, 0.18);
+  border-radius: 20px;
+}
+
+.pbi-dashboard {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(45, 212, 191, 0.12), transparent 27rem),
+    radial-gradient(circle at 92% 16%, rgba(244, 183, 94, 0.09), transparent 24rem),
+    linear-gradient(145deg, #081310 0%, var(--pbi-canvas) 48%, #0c1b17 100%);
+  background-attachment: fixed;
+}
+
+.pbi-topbar {
+  min-height: 56px;
+  padding-block: 0.68rem;
+  border-bottom: 1px solid rgba(244, 183, 94, 0.34);
+  background: linear-gradient(110deg, rgba(10, 79, 135, 0.98), rgba(6, 55, 98, 0.98));
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+}
+
+.pbi-header {
+  border-bottom-color: rgba(94, 234, 212, 0.14);
+  background:
+    linear-gradient(120deg, rgba(23, 38, 34, 0.88), rgba(13, 28, 24, 0.72)),
+    transparent;
+  backdrop-filter: blur(16px);
+}
+
+.pbi-brand {
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #0a568f, #0a4f87 62%, #063762);
+  box-shadow: 0 18px 44px rgba(6, 55, 98, 0.28);
+}
+
+.pbi-main {
+  padding: clamp(0.85rem, 1.5vw, 1.5rem);
+}
+
+.pbi-report {
+  gap: clamp(0.85rem, 1.3vw, 1.35rem);
+}
+
+.pbi-report-section {
+  gap: clamp(0.72rem, 1vw, 1rem);
+  padding: clamp(0.8rem, 1.2vw, 1.2rem);
+  overflow: visible;
+  border: 1px solid rgba(94, 234, 212, 0.13);
+  border-radius: 20px;
+  background:
+    linear-gradient(145deg, rgba(23, 38, 34, 0.64), rgba(10, 22, 19, 0.52)),
+    rgba(16, 26, 24, 0.36);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(10px);
+}
+
+.pbi-section-heading {
+  align-items: center;
+  min-height: 58px;
+  padding: 0.15rem 0.2rem 0.75rem;
+}
+
+.pbi-section-heading h2,
+h2.pbi-section-heading {
+  color: var(--pbi-ink-strong);
+  font-size: clamp(1.08rem, 1.35vw, 1.48rem);
+  letter-spacing: -0.015em;
+}
+
+.pbi-section-heading p {
+  max-width: 48ch;
+  margin: 0;
+  color: var(--pbi-muted);
+  font-size: 0.76rem;
+  line-height: 1.4;
+  text-align: right;
+}
+
+.pbi-section-heading::after {
+  width: clamp(72px, 8vw, 120px);
+  background: linear-gradient(90deg, var(--pbi-gold), var(--pbi-blue));
+}
+
+.pbi-section-grid--indicators {
+  grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr));
+}
+
+.pbi-kpi,
+.pbi-card {
+  border-color: rgba(94, 234, 212, 0.18);
+  background:
+    linear-gradient(155deg, rgba(255, 255, 255, 0.025), transparent 46%),
+    var(--pbi-card);
+}
+
+.pbi-kpi {
+  border-width: 1px;
+  border-top: 2px solid rgba(45, 212, 191, 0.62);
+  border-radius: 15px;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16);
+}
+
+.pbi-kpi:hover {
+  border-color: rgba(94, 234, 212, 0.52);
+  box-shadow: 0 16px 34px rgba(45, 212, 191, 0.12);
+  transform: translateY(-2px);
+}
+
+.pbi-card {
+  min-height: clamp(285px, 24vw, 350px);
+  border-radius: 18px;
+  box-shadow: 0 16px 38px rgba(0, 0, 0, 0.22);
+}
+
+.pbi-card::after {
+  position: absolute;
+  z-index: 2;
+  right: 22%;
+  bottom: 0;
+  left: 22%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(244, 183, 94, 0.38), transparent);
+  content: "";
+  pointer-events: none;
+}
+
+.pbi-card:hover {
+  border-color: rgba(94, 234, 212, 0.5);
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.28), 0 0 28px rgba(45, 212, 191, 0.07);
+  transform: translateY(-3px);
+}
+
+.pbi-card-header {
+  min-height: 56px;
+  padding: 0.72rem clamp(0.8rem, 1.1vw, 1.15rem);
+  background:
+    linear-gradient(110deg, rgba(10, 86, 143, 0.98), rgba(6, 55, 98, 0.98)),
+    var(--pbi-blue-dark);
+}
+
+.pbi-card-title {
+  font-size: clamp(0.9rem, 1vw, 1.18rem);
+}
+
+.pbi-card-body {
+  background: transparent;
+}
+
+.pbi-content-grid,
+.pbi-section-grid {
+  gap: clamp(0.72rem, 1vw, 1rem);
+}
+
+.pbi-card--span-8-centered {
+  grid-column: 1 / -1;
+}
+
+.pbi-floating-period-panel {
+  border-color: rgba(94, 234, 212, 0.32);
+  border-left-color: var(--pbi-gold);
+  border-radius: 15px;
+  background: rgba(13, 27, 23, 0.94);
+  box-shadow: 0 22px 56px rgba(0, 0, 0, 0.34);
+  backdrop-filter: blur(18px);
+}
+
+body[data-pbi-theme="light"] .pbi-dashboard {
+  background:
+    radial-gradient(circle at 8% 4%, rgba(23, 101, 168, 0.1), transparent 27rem),
+    radial-gradient(circle at 92% 16%, rgba(234, 203, 43, 0.12), transparent 24rem),
+    linear-gradient(145deg, #edf3f8, var(--pbi-canvas));
+}
+
+body[data-pbi-theme="light"] .pbi-report-section {
+  border-color: rgba(9, 71, 128, 0.12);
+  background: rgba(255, 255, 255, 0.58);
+  box-shadow: 0 16px 38px rgba(9, 30, 53, 0.08);
+}
+
+body[data-pbi-theme="light"] .pbi-kpi,
+body[data-pbi-theme="light"] .pbi-card {
+  border-color: rgba(9, 71, 128, 0.16);
+  background: linear-gradient(155deg, #fff, #f8fbfd);
+}
+
+body[data-pbi-theme="light"] .pbi-kpi--birthday {
+  border-color: rgba(9, 71, 128, 0.5);
+  background:
+    radial-gradient(circle at 88% 12%, rgba(234, 203, 43, 0.2), transparent 34%),
+    linear-gradient(145deg, #0a568f, #073b69);
+  box-shadow: 0 14px 32px rgba(9, 71, 128, 0.2);
+}
+
+body[data-pbi-theme="light"] .pbi-kpi--birthday .pbi-kpi-label {
+  color: rgba(255, 255, 255, 0.8);
+}
+
+body[data-pbi-theme="light"] .pbi-kpi--birthday .pbi-birthday-name {
+  color: #ffffff;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.24);
+}
+
+body[data-pbi-theme="light"] .pbi-kpi--birthday .pbi-birthday-date {
+  color: #ffe169;
+}
+
+@media (min-width: 1100px) {
+  .pbi-card--span-4 {
+    grid-column: span 4;
+  }
+
+  .pbi-card--span-6 {
+    grid-column: span 6;
+  }
+
+  .pbi-card--span-8 {
+    grid-column: span 8;
+  }
+
+  .pbi-card--span-12,
+  .pbi-card--wide,
+  .pbi-card--span-8-centered {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (min-width: 681px) and (max-width: 1099px) {
+  #pbi-attendance {
+    grid-column: span 6;
+  }
+
+  .pbi-report-section {
+    padding: 0.85rem;
+  }
+}
+
+@media (max-width: 680px) {
+  .pbi-dashboard-shell {
+    border-radius: 0;
+  }
+
+  .pbi-dashboard {
+    background:
+      radial-gradient(circle at 20% 2%, rgba(45, 212, 191, 0.11), transparent 20rem),
+      var(--pbi-canvas);
+    background-attachment: scroll;
+  }
+
+  .pbi-header,
+  .pbi-main {
+    padding: 0.62rem;
+  }
+
+  .pbi-report,
+  .pbi-content-grid,
+  .pbi-section-grid {
+    gap: 0.68rem;
+  }
+
+  .pbi-report-section {
+    gap: 0.68rem;
+    padding: 0.65rem;
+    border-radius: 16px;
+  }
+
+  .pbi-section-heading {
+    min-height: 0;
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 0.32rem;
+  }
+
+  .pbi-section-heading p {
+    font-size: 0.69rem;
+    text-align: left;
+  }
+
+  .pbi-card,
+  .pbi-card--span-4,
+  .pbi-card--span-6,
+  .pbi-card--span-8,
+  .pbi-card--span-8-centered,
+  .pbi-card--span-12,
+  .pbi-card--wide,
+  .pbi-card--tall {
+    min-height: 290px;
+    border-width: 1px;
+    border-radius: 15px;
+  }
+
+  .pbi-card--table,
+  .pbi-card--task-detail-scroll {
+    min-height: 245px;
+  }
+
+  .pbi-card--top-workers-compact:not(.pbi-card--expanded) {
+    height: 360px;
+  }
+
+  .pbi-card--monthly-compact:not(.pbi-card--expanded) {
+    min-height: 300px;
+    height: 300px;
+  }
+
+  .pbi-card--monthly-compact:not(.pbi-card--expanded) .pbi-chart,
+  .pbi-card--monthly-compact:not(.pbi-card--expanded) .pbi-chart-frame {
+    min-height: 215px;
+  }
+
+  .pbi-card--expanded.pbi-card--training-history .pbi-table-wrap,
+  .pbi-card--expanded.pbi-card--task-detail-scroll .pbi-table-wrap {
+    height: calc(100dvh - 235px);
+    min-height: 220px;
+  }
+
+  .pbi-card-header {
+    min-height: 52px;
+    padding: 0.68rem 0.75rem;
+  }
+
+  .pbi-card-body {
+    padding: 0.72rem;
+  }
+
+  .pbi-chart,
+  .pbi-chart-frame {
+    min-height: 235px;
+  }
+
+  .pbi-floating-period-panel {
+    top: auto;
+    right: 0.65rem;
+    bottom: 0.65rem;
+    width: min(245px, calc(100vw - 4rem));
+    max-height: min(72svh, 560px);
+    overflow-y: auto;
+    transform: none;
+  }
+
+  .pbi-floating-period-panel.is-collapsed {
+    transform: translateX(calc(100% + 0.65rem));
+  }
 }

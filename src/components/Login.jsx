@@ -1,9 +1,38 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { LockKeyhole, LogIn, UserRound } from "lucide-react";
 import { verifyUser } from "../lib/repository";
 import { isSupabaseConfigured } from "../lib/supabaseClient";
 import { Alert, Button } from "./ui";
 import loginVideoUrl from "../../genera_un_video_de_fondo_para.mp4";
+
+const MOTIVATIONAL_PHRASES = [
+  "Cada paso cuenta",
+  "Tu esfuerzo deja huella",
+  "Calidad en cada detalle",
+  "Hoy avanzamos juntos",
+  "La constancia crea resultados",
+  "Grandes metas, acciones diarias",
+  "Crecer también es insistir",
+  "Haz que hoy cuente",
+  "Avanzar también es ganar",
+  "Juntos llegamos más lejos"
+];
+
+function createMotivationalFlow() {
+  const shuffled = [...MOTIVATIONAL_PHRASES];
+  for (let index = shuffled.length - 1; index > 0; index -= 1) {
+    const randomIndex = Math.floor(Math.random() * (index + 1));
+    [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
+  }
+
+  const lanes = [7, 16, 26, 37, 48, 59, 69, 78, 87, 94];
+  return shuffled.map((phrase, index) => ({
+    phrase,
+    top: lanes[index] + (Math.random() * 3 - 1.5),
+    duration: 17 + Math.random() * 12,
+    delay: -(Math.random() * 28)
+  }));
+}
 
 function isInactive(user) {
   const value = String(user?.activo ?? true).trim().toLowerCase();
@@ -17,6 +46,7 @@ export default function Login({ onLogin }) {
   const [message, setMessage] = useState("");
   const [loadBackgroundVideo, setLoadBackgroundVideo] = useState(false);
   const [videoReady, setVideoReady] = useState(false);
+  const motivationalFlow = useMemo(createMotivationalFlow, []);
 
   useEffect(() => {
     const prefersReducedMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -85,11 +115,36 @@ export default function Login({ onLogin }) {
         </video>
       ) : null}
       <div className="login-overlay" />
+      <div className="login-ambient login-ambient--teal" aria-hidden="true" />
+      <div className="login-ambient login-ambient--gold" aria-hidden="true" />
+      <div className="login-motivation-cloud" aria-hidden="true">
+        {motivationalFlow.map(({ phrase, top, duration, delay }) => (
+          <span
+            className="login-motivation-pill"
+            key={phrase}
+            style={{
+              "--login-phrase-top": `${top}%`,
+              "--login-phrase-duration": `${duration}s`,
+              "--login-phrase-delay": `${delay}s`
+            }}
+          >
+            <i />
+            {phrase}
+          </span>
+        ))}
+      </div>
       <section className="login-card" aria-label="Inicio de sesion">
-        <div className="brand-mark">F</div>
+        <div className="login-card-topline">
+          <div className="brand-mark">F</div>
+          <div className="login-brand-copy">
+            <strong>Formulario</strong>
+            <span>Gestión operativa</span>
+          </div>
+          <span className="login-status"><i /> En línea</span>
+        </div>
         <p className="eyebrow">Sistema por roles</p>
         <h1>Ingreso al sistema</h1>
-        <p className="login-copy">Accede a operaciones, asistencia, tareas, incidencias y puntos desde un panel React.</p>
+        <p className="login-copy">Todo tu trabajo, progreso y resultados en un solo lugar.</p>
 
         {!isSupabaseConfigured ? (
           <Alert type="error">
@@ -124,6 +179,7 @@ export default function Login({ onLogin }) {
             Iniciar sesion
           </Button>
         </form>
+        <p className="login-card-footnote"><span>●</span> Un equipo, un propósito, mejores resultados.</p>
       </section>
     </main>
   );
