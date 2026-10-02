@@ -5173,7 +5173,19 @@ button.pbi-legend-item:focus-visible,
   }
 
   .pbi-kpi-grid--activities {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+  }
+
+  .pbi-kpi-grid--activities > .pbi-kpi {
+    grid-column: span 2;
+  }
+
+  .pbi-kpi-grid--activities > .pbi-kpi:nth-child(4) {
+    grid-column: 2 / span 2;
+  }
+
+  .pbi-kpi-grid--activities > .pbi-kpi:nth-child(5) {
+    grid-column: 4 / span 2;
   }
 
   .pbi-section-grid--indicators {
@@ -5833,6 +5845,20 @@ h2.pbi-section-heading {
 
 .pbi-section-grid--indicators {
   grid-template-columns: repeat(auto-fit, minmax(min(185px, 100%), 1fr));
+}
+
+@media (min-width: 1100px) {
+  .pbi-section-grid--indicators {
+    grid-template-columns: repeat(10, minmax(0, 1fr));
+  }
+
+  .pbi-section-grid--indicators > * {
+    grid-column: span 2;
+  }
+
+  .pbi-section-grid--indicators > :nth-child(6) {
+    grid-column: 2 / span 2;
+  }
 }
 
 .pbi-kpi,
