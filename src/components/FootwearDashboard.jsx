@@ -6,6 +6,7 @@ import {
   averageEmployeeTenureMonths,
   buildLeaderOperationSummary,
   dashboardDateParts,
+  selectTaskDetailActivities,
   taskVolumeRows,
   timedActivityKpi,
   workerProductionRows
@@ -2683,10 +2684,7 @@ export default function FootwearDashboard({ onLogout }) {
   }).sort((a, b) => b.value - a.value || a.name.localeCompare(b.name));
   const staticMonthlyTotal = staticMonthlyTasks.reduce((sum, month) => sum + month.value, 0);
   const taskVolumeTotal = staticTaskVolume.reduce((sum, item) => sum + item.value, 0);
-  const taskDetailRows = [...visibleActivities, ...generalLoteDetailActivities]
-    .filter((row) => row.source === "operante")
-    .filter((row) => !detailTaskIds.length || detailTaskIds.includes(Number(row.taskId)))
-    .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)))
+  const taskDetailRows = selectTaskDetailActivities(visibleActivities, generalLoteDetailActivities, detailTaskIds)
     .map((row) => {
       const task = taskById.get(row.taskId);
       const worker = workerById.get(Number(row.workerId));
@@ -3452,7 +3450,7 @@ export default function FootwearDashboard({ onLogout }) {
                       {
                         key: "actions",
                         label: "Acciones",
-                        render: (_value, row) => (
+                        render: (_value, row) => row.raw.source === "operante" ? (
                           <span className="pbi-task-detail-actions">
                             <button
                               type="button"
@@ -3473,7 +3471,7 @@ export default function FootwearDashboard({ onLogout }) {
                               <DeleteIcon />
                             </button>
                           </span>
-                        )
+                        ) : <span className="muted">Gestionar en historial del lider</span>
                       },
                       { key: "createdAt", label: "Creado el" }
                     ]}

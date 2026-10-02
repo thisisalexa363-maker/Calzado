@@ -20,10 +20,11 @@ El despliegue debe incluir el repositorio completo. Subir solamente la carpeta `
 
 ## Personal de apoyo
 
-Antes de usar el interruptor **Personal de apoyo** en Usuarios, ejecuta en orden
-`sql/051_personal_apoyo.sql` y `sql/052_personal_apoyo_registros.sql` en el editor SQL de Supabase.
-La primera migracion crea el listado independiente; la segunda permite asociar
-personal de apoyo con registros de tiempo e incidencias sin darle acceso al sistema.
+Antes de usar el interruptor **Personal de apoyo** en Usuarios, ejecuta
+`sql/054_apoyo_en_usuarios.sql` en el editor SQL de Supabase. El apoyo se guarda
+en `usuarios` con `tipo = 'Apoyo'`; los demas usuarios tienen `tipo = 'Normal'`.
+La migracion convierte cualquier registro de apoyo creado con el esquema anterior,
+reasigna sus tareas e incidencias al ID de `usuarios` y elimina la tabla antigua.
 
 ## Temas por usuario
 

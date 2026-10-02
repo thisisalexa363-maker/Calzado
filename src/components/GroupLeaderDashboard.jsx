@@ -1451,7 +1451,7 @@ export function GroupTimeDashboard({ user }) {
           { value: "", label: "Selecciona una persona" },
           ...workers.map((worker) => ({
             value: String(worker.id),
-            label: worker.id < 0 ? worker.nombre : `${worker.nombre || worker.email || "Trabajador sin nombre"} (${worker.rol || "sin rol"})`
+            label: worker.tipo === "Apoyo" ? worker.nombre : `${worker.nombre || worker.email || "Trabajador sin nombre"} (${worker.rol || "sin rol"})`
           }))
         ]
       }

@@ -7,10 +7,23 @@ import {
   buildLeaderOperationSummary,
   buildTaggedPairsByBrand,
   dashboardDateParts,
+  selectTaskDetailActivities,
   taskVolumeRows,
   timedActivityKpi,
   workerProductionRows
 } from "../src/lib/dashboardMetrics.js";
+
+test("detalle de tareas incluye apoyo registrado por el lider y filtra sin duplicar lote general", () => {
+  const activities = [
+    { id: "jefe-equipo-8", rawId: 8, workerId: 41, taskId: 2, date: "2026-10-02", createdAt: "2026-10-02T15:00:00Z", source: "jefe-equipo" },
+    { id: "operante-7", rawId: 7, workerId: 12, taskId: 2, date: "2026-10-02", createdAt: "2026-10-02T12:00:00Z", source: "operante" }
+  ];
+  const general = [{ id: "operante-9", rawId: 9, workerId: 12, taskId: 3, date: "2026-10-01", source: "operante", isGeneralLote: true }];
+  assert.deepEqual(selectTaskDetailActivities(activities, general).map((row) => row.id),
+    ["jefe-equipo-8", "operante-7", "operante-9"]);
+  assert.deepEqual(selectTaskDetailActivities(activities, general, [2]).map((row) => row.id),
+    ["jefe-equipo-8", "operante-7"]);
+});
 
 test("resume ingreso y despacho solo con registros del jefe de equipo", () => {
   const tasks = [

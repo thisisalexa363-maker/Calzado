@@ -263,6 +263,17 @@ export function taskVolumeRows(tasks, activities) {
   })).filter((item) => item.value > 0).sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
 }
 
+export function selectTaskDetailActivities(activities, generalLoteActivities, taskIds = []) {
+  const selected = new Set(taskIds.map(Number));
+  return [...activities, ...generalLoteActivities]
+    .filter((row) => !selected.size || selected.has(Number(row.taskId)))
+    .sort((left, right) =>
+      String(right.date || "").localeCompare(String(left.date || ""))
+      || String(right.createdAt || "").localeCompare(String(left.createdAt || ""))
+      || Number(right.rawId || 0) - Number(left.rawId || 0)
+    );
+}
+
 export function workerProductionRows(workers, activities, selectedWorkerIds = []) {
   return workers.map((worker) => {
     const rows = activities.filter((row) => Number(row.workerId) === Number(worker.id));

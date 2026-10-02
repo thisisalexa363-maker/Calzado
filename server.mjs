@@ -250,6 +250,11 @@ function normalizeRole(role) {
   return value;
 }
 
+function personDisplayName(user) {
+  const name = user?.nombre || user?.email || "";
+  return user?.tipo === "Apoyo" && name ? `${name} (Apoyo operativo)` : name;
+}
+
 function isTimedTaskWorkerRole(role) {
   return ["operante", "lider de equipo", "otros"].includes(normalizeRole(role));
 }
@@ -609,14 +614,16 @@ function supportPersonPayload(body) {
   const dni = String(body.dni || "").trim();
   if (!nombres || !apellidos) throw new Error("Nombres y apellidos son obligatorios.");
   if (!/^[0-9]{8}$/.test(dni)) throw new Error("El DNI debe tener 8 digitos.");
-  return { nombres, apellidos, dni };
+  return { nombres, apellidos, nombre: `${nombres} ${apellidos}`, dni };
 }
 
 async function handleSupportPersonnel(request, response, personId = null) {
   if (!requireAdministrator(request, response)) return;
   try {
     if (request.method === "GET") {
-      const result = await supabase.from("personal_apoyo").select("*").order("apellidos", { ascending: true });
+      const result = await supabase.from("usuarios")
+        .select("id,nombres,apellidos,nombre,dni,activo,created_at")
+        .eq("tipo", "Apoyo").order("apellidos", { ascending: true });
       if (result.error) throw result.error;
       sendJson(response, 200, { people: result.data || [] });
       return;
@@ -626,25 +633,33 @@ async function handleSupportPersonnel(request, response, personId = null) {
       return;
     }
     const body = JSON.parse((await readBody(request)) || "{}");
-    const payload = request.method === "POST" ? supportPersonPayload(body) : {
+    const payload = request.method === "POST" ? {
+      ...supportPersonPayload(body), tipo: "Apoyo", rol: "operante", activo: true,
+      email: null, password_hash: null
+    } : {
       ...("nombres" in body || "apellidos" in body || "dni" in body ? supportPersonPayload(body) : {}),
       ...(typeof body.activo === "boolean" ? { activo: body.activo } : {})
     };
     if (request.method === "PATCH" && !Object.keys(payload).length) throw new Error("No hay cambios para guardar.");
     const query = request.method === "POST"
-      ? supabase.from("personal_apoyo").insert(payload)
-      : supabase.from("personal_apoyo").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", personId);
-    const result = await query.select("*").maybeSingle();
+      ? supabase.from("usuarios").insert(payload)
+      : supabase.from("usuarios").update(payload).eq("id", personId).eq("tipo", "Apoyo");
+    let result = await query.select("id,nombres,apellidos,nombre,dni,activo,created_at").maybeSingle();
+    if (request.method === "POST" && isPrimaryKeySequenceConflict(result.error)) {
+      result = await supabase.from("usuarios")
+        .insert({ ...payload, id: await nextTableId("usuarios") })
+        .select("id,nombres,apellidos,nombre,dni,activo,created_at").single();
+    }
     if (result.error) throw result.error;
     sendJson(response, result.data ? (request.method === "POST" ? 201 : 200) : 404,
       result.data ? { person: result.data } : { error: "Registro no encontrado." });
   } catch (error) {
-    if (["42P01", "PGRST205"].includes(error?.code) || /personal_apoyo.*(schema cache|does not exist)/i.test(error?.message || "")) {
-      sendJson(response, 503, { error: "Falta aplicar sql/051_personal_apoyo.sql en Supabase." });
+    if (["42703", "PGRST204"].includes(error?.code) && /tipo|nombres|apellidos/i.test(error?.message || "")) {
+      sendJson(response, 503, { error: "Falta aplicar sql/054_apoyo_en_usuarios.sql en Supabase." });
       return;
     }
     sendJson(response, error?.code === "23505" ? 409 : error instanceof SyntaxError || /obligatori|DNI|cambios/i.test(error.message || "") ? 400 : 500,
-      { error: error.message || "No se pudo guardar el personal de apoyo." });
+      { error: error?.code === "23505" ? "El DNI ya esta registrado para otra persona de apoyo." : error.message || "No se pudo guardar el personal de apoyo." });
   }
 }
 
@@ -1547,9 +1562,10 @@ async function handleReadFootwearDashboard(request, response) {
 
     const safeWorkers = dashboardUsers.map((user) => ({
       id: Number(user.id),
-      name: String(user.nombre || `Usuario ${user.id}`),
-      alias: String(user.alias || user.nombre || `Usuario ${user.id}`),
+      name: String(personDisplayName(user) || `Usuario ${user.id}`),
+      alias: String(user.tipo === "Apoyo" ? personDisplayName(user) : user.alias || user.nombre || `Usuario ${user.id}`),
       role: normalizeRole(user.rol) || "otros",
+      type: user.tipo === "Apoyo" ? "Apoyo" : "Normal",
       active: isActive(user.activo),
       joinedAt: dashboardDate(user.fecha_ingreso || user.created_at),
       leftAt: dashboardDate(user.fecha_salida),
@@ -1600,7 +1616,7 @@ async function handleReadFootwearDashboard(request, response) {
     const incidentStoreById = new Map(incidentStores.map((item) => [Number(item.id), item]));
     const loteBrandNameById = new Map(brands.map((brand) => [Number(brand.id), String(brand.nombre || `Marca ${brand.id}`)]));
     const payrollYear = Number(currentLimaDate().slice(0, 4));
-    const payroll = buildDashboardPayroll(dashboardUsers, visibleMovements, [payrollYear], { normalizeRole });
+    const payroll = buildDashboardPayroll(dashboardUsers.filter((user) => user.tipo !== "Apoyo"), visibleMovements, [payrollYear], { normalizeRole });
 
     response.setHeader("cache-control", "no-store, no-cache, must-revalidate");
     sendJson(response, 200, {
@@ -1662,7 +1678,7 @@ async function handleReadFootwearDashboard(request, response) {
       incidents: visibleIncidents.map((row) => ({
         id: Number(row.id_error), workerId: Number(row.usuario_id) || null, areaId: Number(row.area_id) || null, taskId: Number(row.tarea_error_id),
         offenderName: String(row.usuario_id
-          ? incidentUserById.get(Number(row.usuario_id))?.nombre || `Usuario ${row.usuario_id}`
+          ? personDisplayName(incidentUserById.get(Number(row.usuario_id))) || `Usuario ${row.usuario_id}`
           : incidentAreaById.get(Number(row.area_id))?.nombre || "Área sin identificar"),
         offenderType: row.usuario_id ? "Usuario" : "Área",
         taskName: String(taskTitle(errorTaskById.get(Number(row.tarea_error_id))) || ""), errorType: String(row.tipo_error || "Sin tipo"),
@@ -4068,7 +4084,7 @@ async function handleDeleteActivityRecord(request, response, id) {
 }
 
 const GROUP_RECORD_COLUMNS_CURRENT =
-  "id,encargado_id,trabajador_id,personal_apoyo_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,tipo_etiquetado,observacion,hora_inicio,hora_fin,created_at,updated_at,revision";
+  "id,encargado_id,trabajador_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,tipo_etiquetado,observacion,hora_inicio,hora_fin,created_at,updated_at,revision";
 const GROUP_RECORD_COLUMNS_WITH_EXTRAS =
   "id,encargado_id,trabajador_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,observacion,created_at";
 const GROUP_RECORD_COLUMNS_BASE =
@@ -4113,27 +4129,24 @@ async function selectGroupLeaderRecordRows(applyFilters) {
   return result;
 }
 
-function enrichGroupRecords(records, users, tasks, brands = [], stores = [], supportPeople = []) {
+function enrichGroupRecords(records, users, tasks, brands = [], stores = []) {
   const userById = new Map(users.map((user) => [Number(user.id), user]));
   const taskById = new Map(tasks.map((task) => [Number(task.id), task]));
   const brandById = new Map(brands.map((brand) => [Number(brand.id), brand]));
   const storeById = new Map(stores.map((store) => [Number(store.id), store]));
-  const supportById = new Map(supportPeople.map((person) => [Number(person.id), person]));
 
   return records.map((record) => {
     const encargado = userById.get(Number(record.encargado_id));
     const trabajador = userById.get(Number(record.trabajador_id));
-    const support = supportById.get(Number(record.personal_apoyo_id));
     const task = taskById.get(Number(record.tarea_id));
     const brand = record.marca_id ? brandById.get(Number(record.marca_id)) : null;
     const store = record.tienda_id ? storeById.get(Number(record.tienda_id)) : null;
 
     return {
       ...record,
-      trabajador_id: support ? -Number(support.id) : record.trabajador_id,
-      encargado_nombre: encargado?.nombre || encargado?.email || "",
+      encargado_nombre: personDisplayName(encargado),
       encargado_email: encargado?.email || "",
-      trabajador_nombre: support ? `${support.nombres} ${support.apellidos} (Apoyo operativo)` : trabajador?.nombre || trabajador?.email || "",
+      trabajador_nombre: personDisplayName(trabajador),
       trabajador_email: trabajador?.email || "",
       tarea_nombre: record.tarea_nombre || taskTitle(task) || `Tarea ${record.tarea_id}`,
       marca_nombre: brand?.nombre || "",
@@ -4169,14 +4182,13 @@ async function selectAverageReferencesByTask() {
 
 async function loadGroupLeaderData() {
   const tableName = await getTaskTableName();
-  const [usersResult, tasksResult, recordsResult, brandsResult, storesResult, averageReferenceResult, supportResult] = await Promise.all([
-    supabase.from("usuarios").select("id,nombre,email,rol,activo").order("id", { ascending: true }),
+  const [usersResult, tasksResult, recordsResult, brandsResult, storesResult, averageReferenceResult] = await Promise.all([
+    supabase.from("usuarios").select("id,nombre,email,rol,tipo,activo").order("id", { ascending: true }),
     supabase.from(tableName).select("*").eq("es_operativa", true).order("id", { ascending: true }),
     selectGroupLeaderRecordRows((query) => query.order("created_at", { ascending: false })),
     supabase.from("marcas").select("*").order("nombre", { ascending: true }),
     supabase.from("tiendas").select("id,nombre,activo"),
-    selectAverageReferencesByTask(),
-    supabase.from("personal_apoyo").select("id,nombres,apellidos,activo").order("apellidos")
+    selectAverageReferencesByTask()
   ]);
 
   if (usersResult.error) throw usersResult.error;
@@ -4184,18 +4196,12 @@ async function loadGroupLeaderData() {
   if (recordsResult.error) throw recordsResult.error;
   if (brandsResult.error) throw brandsResult.error;
   if (storesResult.error) throw storesResult.error;
-  if (supportResult.error) throw supportResult.error;
 
   const users = usersResult.data || [];
-  const supportPeople = supportResult.data || [];
-  const supportWorkers = supportPeople.map((person) => ({
-    id: -Number(person.id), nombre: `${person.nombres} ${person.apellidos} (Apoyo operativo)`,
-    rol: "apoyo operativo", activo: isActive(person.activo)
-  }));
   const recordTasks = (tasksResult.data || []).filter((task) => isGroupLeaderTimeTask(task));
   const tasks = recordTasks.filter((task) => isActive(task.activo));
-  const workers = [...users.filter((user) => isTimedTaskWorkerRole(user.rol) && isActive(user.activo)),
-    ...supportWorkers.filter((person) => person.activo)];
+  const workers = users.filter((user) => isTimedTaskWorkerRole(user.rol) && isActive(user.activo))
+    .map((user) => ({ ...user, nombre: personDisplayName(user) }));
   const leaders = users.filter((user) => ["lider de equipo"].includes(normalizeRole(user.rol)) && isActive(user.activo));
   const records = enrichGroupRecords(
     (recordsResult.data || []).map((record) => ({
@@ -4205,8 +4211,7 @@ async function loadGroupLeaderData() {
     users,
     tasksResult.data || [],
     brandsResult.data || [],
-    storesResult.data || [],
-    supportPeople
+    storesResult.data || []
   );
   const stores = (storesResult.data || []).filter((store) => isActive(store.activo));
   let activities = [];
@@ -4243,13 +4248,13 @@ async function loadGroupLeaderData() {
     // mismo. `workers`/`leaders` siguen restringidos para los selectores de
     // alta; esto es para poder mostrar y agrupar cualquier registro existente
     // (por ejemplo en el Ranking).
-    allUsers: [...users.filter((item) => normalizeRole(item.rol) !== "administrador").map((item) => ({
+    allUsers: users.filter((item) => normalizeRole(item.rol) !== "administrador").map((item) => ({
       id: item.id,
-      nombre: item.nombre,
+      nombre: personDisplayName(item),
       email: item.email,
       rol: item.rol,
       activo: isActive(item.activo)
-    })), ...supportWorkers],
+    })),
     records: recordsWithTimes,
     activities,
     operationsMigrationRequired: false,
@@ -4716,7 +4721,7 @@ async function ensureGroupRecordDoesNotOverlap(workerId, timing, excludeRecordId
   let query = supabase
     .from("registros_tareas_jefe_equipo")
     .select("id,hora_inicio,hora_fin")
-    .eq(workerId < 0 ? "personal_apoyo_id" : "trabajador_id", Math.abs(workerId))
+    .eq("trabajador_id", workerId)
     .lt("hora_inicio", timing.hora_fin)
     .gt("hora_fin", timing.hora_inicio)
     .limit(1);
@@ -4733,8 +4738,8 @@ async function ensureGroupRecordDoesNotOverlap(workerId, timing, excludeRecordId
 
 async function validateGroupRecordBase(body, { current = null, validateWorker = true } = {}) {
   const taskId = Number(current?.tarea_id ?? body.tarea_id);
-  const workerId = Number(current ? (current.personal_apoyo_id ? -current.personal_apoyo_id : current.trabajador_id) : body.trabajador_id);
-  if (!Number.isInteger(taskId) || taskId <= 0 || !Number.isInteger(workerId) || workerId === 0) {
+  const workerId = Number(current?.trabajador_id ?? body.trabajador_id);
+  if (!Number.isInteger(taskId) || taskId <= 0 || !Number.isInteger(workerId) || workerId <= 0) {
     throw invalidGroupRecord("Trabajador y tarea son obligatorios.");
   }
   if (current && body.tarea_id !== undefined && Number(body.tarea_id) !== taskId) {
@@ -4747,11 +4752,9 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
   if (!task || !isGroupLeaderTimeTask(task)) throw invalidGroupRecord("Selecciona una tarea por tiempo valida.");
   if (!current && !isActive(task.activo)) throw invalidGroupRecord("La tarea seleccionada no esta activa.");
   if (validateWorker) {
-    const workerResult = workerId < 0
-      ? await supabase.from("personal_apoyo").select("id,activo").eq("id", -workerId).maybeSingle()
-      : await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
+    const workerResult = await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
     if (workerResult.error) throw workerResult.error;
-    if (!workerResult.data || (workerId > 0 && !isTimedTaskWorkerRole(workerResult.data.rol)) || !isActive(workerResult.data.activo)) {
+    if (!workerResult.data || !isTimedTaskWorkerRole(workerResult.data.rol) || !isActive(workerResult.data.activo)) {
       throw invalidGroupRecord("Selecciona una persona activa.");
     }
   }
@@ -4764,8 +4767,7 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
       workerId,
       taskId,
       payload: {
-        trabajador_id: workerId > 0 ? workerId : null,
-        personal_apoyo_id: workerId < 0 ? -workerId : null,
+        trabajador_id: workerId,
         tarea_id: taskId,
         cantidad: 0,
         ...groupLeaderRecordStartTiming(body.hora_inicio),
@@ -4784,8 +4786,7 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
     workerId,
     taskId,
     payload: {
-      trabajador_id: workerId > 0 ? workerId : null,
-      personal_apoyo_id: workerId < 0 ? -workerId : null,
+      trabajador_id: workerId,
       tarea_id: taskId,
       cantidad: quantity,
       ...timing,
@@ -4852,7 +4853,7 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
       ...current,
       ...body,
       tarea_id: current.tarea_id,
-      trabajador_id: current.personal_apoyo_id ? -current.personal_apoyo_id : current.trabajador_id,
+      trabajador_id: current.trabajador_id,
       detalle: body.detalle ?? body.observacion ?? current.observacion
     };
     const { payload } = await validateGroupRecordBase(merged, { current, validateWorker: false });
@@ -4934,9 +4935,9 @@ function normalizeLiveActivity(activity, usersById, tasksById, brandsById, store
   const task = tasksById.get(Number(activity.tarea_id));
   return {
     ...activity,
-    trabajador_nombre: worker?.nombre || worker?.email || `Usuario ${activity.trabajador_id}`,
+    trabajador_nombre: personDisplayName(worker) || `Usuario ${activity.trabajador_id}`,
     trabajador_email: worker?.email || "",
-    encargado_nombre: leader?.nombre || leader?.email || `Usuario ${activity.encargado_id}`,
+    encargado_nombre: personDisplayName(leader) || `Usuario ${activity.encargado_id}`,
     tarea_nombre: taskTitle(task) || `Tarea ${activity.tarea_id}`,
     marca_nombre: brandsById.get(Number(activity.marca_id))?.nombre || "",
     tienda_nombre: storesById.get(Number(activity.tienda_id))?.nombre || "",
@@ -4955,7 +4956,7 @@ async function selectLiveGroupLeaderActivities() {
 
   const activityIds = activities.map((item) => Number(item.id));
   const [usersResult, tasksResult, brandsResult, storesResult, historyResult] = await Promise.all([
-    supabase.from("usuarios").select("id,nombre,email"),
+    supabase.from("usuarios").select("id,nombre,email,tipo"),
     supabase.from(await getTaskTableName()).select("*"),
     supabase.from("marcas").select("id,nombre"),
     supabase.from("tiendas").select("id,nombre"),
@@ -5448,16 +5449,15 @@ async function handleDeleteIncidentTask(request, response, taskId) {
 }
 
 async function loadIncidentData() {
-  const [usersResult, tasksResult, storesResult, areasResult, incidentsResult, supportResult] = await Promise.all([
-    supabase.from("usuarios").select("id,nombre,email,rol,activo").order("id", { ascending: true }),
+  const [usersResult, tasksResult, storesResult, areasResult, incidentsResult] = await Promise.all([
+    supabase.from("usuarios").select("id,nombre,email,rol,tipo,activo").order("id", { ascending: true }),
     supabase.from("tarea_error").select("id,nombre,activo").order("id", { ascending: true }),
     supabase.from("tiendas").select("id,nombre,activo").order("id", { ascending: true }),
     supabase.from("areas_departamento").select("id,nombre").order("nombre", { ascending: true }),
     supabase
       .from("registro_errores")
-      .select("id_error,turno,tarea_error_id,tienda_id,numero_guia,numero_lote,observacion,tipo_error,usuario_id,personal_apoyo_id,fecha_error,area_id")
-      .order("fecha_error", { ascending: false }),
-    supabase.from("personal_apoyo").select("id,nombres,apellidos,activo")
+      .select("id_error,turno,tarea_error_id,tienda_id,numero_guia,numero_lote,observacion,tipo_error,usuario_id,fecha_error,area_id")
+      .order("fecha_error", { ascending: false })
   ]);
 
   if (usersResult.error) throw usersResult.error;
@@ -5465,29 +5465,23 @@ async function loadIncidentData() {
   if (storesResult.error) throw storesResult.error;
   if (areasResult.error) throw areasResult.error;
   if (incidentsResult.error) throw incidentsResult.error;
-  if (supportResult.error) throw supportResult.error;
 
   const stores = (storesResult.data || []).filter((store) => isActive(store.activo));
   const storeNames = new Map((storesResult.data || []).map((store) => [Number(store.id), store.nombre]));
-  const userNames = new Map((usersResult.data || []).map((user) => [Number(user.id), user.nombre || user.email]));
-  const supportWorkers = (supportResult.data || []).map((person) => ({
-    id: -Number(person.id), nombre: `${person.nombres} ${person.apellidos} (Apoyo operativo)`,
-    activo: isActive(person.activo), rol: "apoyo operativo"
-  }));
-  const supportNames = new Map(supportWorkers.map((person) => [-person.id, person.nombre]));
+  const userNames = new Map((usersResult.data || []).map((user) => [Number(user.id), personDisplayName(user)]));
   const taskNames = new Map((tasksResult.data || []).map((task) => [Number(task.id), taskTitle(task)]));
   const areaNames = new Map((areasResult.data || []).map((area) => [Number(area.id), area.nombre]));
   const incidents = (incidentsResult.data || []).map((incident) => ({
     ...incident,
     tienda_nombre: storeNames.get(Number(incident.tienda_id)) || "",
-    usuario_id: incident.personal_apoyo_id ? -Number(incident.personal_apoyo_id) : incident.usuario_id,
-    usuario_nombre: incident.personal_apoyo_id ? supportNames.get(Number(incident.personal_apoyo_id)) || "" : userNames.get(Number(incident.usuario_id)) || "",
+    usuario_nombre: userNames.get(Number(incident.usuario_id)) || "",
     tarea_nombre: taskNames.get(Number(incident.tarea_error_id)) || "",
     area_nombre: areaNames.get(Number(incident.area_id)) || ""
   }));
 
   return {
-    workers: [...(usersResult.data || []).filter((user) => isActive(user.activo)), ...supportWorkers.filter((person) => person.activo)],
+    workers: (usersResult.data || []).filter((user) => isActive(user.activo))
+      .map((user) => ({ ...user, nombre: personDisplayName(user) })),
     tasks: (tasksResult.data || []).filter((task) => isActive(task.activo)),
     stores,
     areas: areasResult.data || [],
@@ -5548,15 +5542,13 @@ async function handleCreateIncident(request, response) {
       sendJson(response, 400, { error: "Selecciona un area valida." });
       return;
     }
-    if (!isAreaIncident && (!Number.isInteger(workerId) || workerId === 0)) {
+    if (!isAreaIncident && (!Number.isInteger(workerId) || workerId <= 0)) {
       sendJson(response, 400, { error: "Selecciona un trabajador activo." });
       return;
     }
 
     const [workerResult, taskResult, storeResult, areaResult] = await Promise.all([
-      isAreaIncident ? Promise.resolve({ data: null, error: null }) : workerId < 0
-        ? supabase.from("personal_apoyo").select("id,nombres,apellidos,activo").eq("id", -workerId).maybeSingle()
-        : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
+      isAreaIncident ? Promise.resolve({ data: null, error: null }) : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
       supabase.from("tarea_error").select("id,nombre,activo").eq("id", taskId).maybeSingle(),
       supabase.from("tiendas").select("id,nombre,activo").eq("id", storeId).maybeSingle(),
       isAreaIncident ? supabase.from("areas_departamento").select("id,nombre").eq("id", areaId).maybeSingle() : Promise.resolve({ data: null, error: null })
@@ -5591,8 +5583,7 @@ async function handleCreateIncident(request, response) {
       numero_lote: lotNumber || null,
       observacion: body.observacion ? String(body.observacion).trim() : null,
       tipo_error: errorType,
-      usuario_id: isAreaIncident || workerId < 0 ? null : worker.id,
-      personal_apoyo_id: !isAreaIncident && workerId < 0 ? worker.id : null,
+      usuario_id: isAreaIncident ? null : worker.id,
       area_id: isAreaIncident ? area.id : null,
       fecha_error: incidentDate
     };
@@ -5628,8 +5619,7 @@ async function handleUpdateIncident(request, response, incidentId) {
       numero_lote: String(body.numero_lote || "").trim() || null,
       observacion: String(body.observacion || "").trim() || null,
       tipo_error: String(body.tipo_error || "").trim().toUpperCase(),
-      usuario_id: isAreaIncident || Number(body.usuario_id) < 0 ? null : Number(body.usuario_id),
-      personal_apoyo_id: !isAreaIncident && Number(body.usuario_id) < 0 ? -Number(body.usuario_id) : null,
+      usuario_id: isAreaIncident ? null : Number(body.usuario_id),
       area_id: isAreaIncident ? Number(body.area_id) : null,
       fecha_error: String(body.fecha_error || "").trim()
     };
@@ -5649,13 +5639,16 @@ async function handleUpdateIncident(request, response, incidentId) {
     if (isAreaIncident && (!Number.isInteger(payload.area_id) || payload.area_id <= 0)) {
       throw invalidGroupRecord("Selecciona un area valida.");
     }
-    if (!isAreaIncident && !payload.personal_apoyo_id && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
+    if (!isAreaIncident && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
       throw invalidGroupRecord("Selecciona un trabajador activo.");
     }
-    if (payload.personal_apoyo_id) {
-      const person = await supabase.from("personal_apoyo").select("id,activo").eq("id", payload.personal_apoyo_id).maybeSingle();
-      if (person.error) throw person.error;
-      if (!person.data || !isActive(person.data.activo)) throw invalidGroupRecord("Selecciona personal de apoyo habilitado.");
+    if (!isAreaIncident) {
+      const workerResult = await supabase.from("usuarios")
+        .select("id,activo").eq("id", payload.usuario_id).maybeSingle();
+      if (workerResult.error) throw workerResult.error;
+      if (!workerResult.data || !isActive(workerResult.data.activo)) {
+        throw invalidGroupRecord("Selecciona un trabajador activo.");
+      }
     }
     const result = await supabase
       .from("registro_errores")

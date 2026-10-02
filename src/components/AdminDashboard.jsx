@@ -478,6 +478,7 @@ const userColumnLabels = {
   nombres_completos: "Nombres y apellidos",
   email: "Usuario o correo",
   rol: "Rol",
+  tipo: "Tipo",
   activo: "Activo",
   fecha_cumpleanos: "Fecha de nacimiento",
   sueldo: "Sueldo",
@@ -625,7 +626,8 @@ function UsersPanel() {
     ...emptyPersonalDataFields()
   });
 
-  const selectedUser = users.find((user) => String(user.id) === String(editId));
+  const regularUsers = users.filter((user) => user.tipo !== "Apoyo");
+  const selectedUser = regularUsers.find((user) => String(user.id) === String(editId));
 
   useEffect(() => {
     if (!selectedUser) return;
@@ -795,10 +797,10 @@ function UsersPanel() {
     }
   }
 
-  const inactiveCount = users.filter((user) => !boolValue(user.activo)).length;
-  const visibleUsers = showInactive ? users : users.filter((user) => boolValue(user.activo));
+  const inactiveCount = regularUsers.filter((user) => !boolValue(user.activo)).length;
+  const visibleUsers = showInactive ? regularUsers : regularUsers.filter((user) => boolValue(user.activo));
   const availableUserColumns = Array.from(new Set(visibleUsers.flatMap((user) => Object.keys(user))))
-    .filter((key) => !["id", "activo", "alias"].includes(key));
+    .filter((key) => !["id", "activo", "alias", "nombres", "apellidos", "datos_legado_apoyo"].includes(key));
   // La fecha de creacion siempre cierra la tabla para que sea facil ubicarla
   // incluso cuando el backend devuelve los campos en un orden diferente.
   const userColumns = [
