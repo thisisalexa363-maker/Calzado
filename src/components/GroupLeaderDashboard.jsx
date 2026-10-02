@@ -326,6 +326,7 @@ function RankingDashboard({ user }) {
       if (selectedDay && recordDate.slice(8, 10) !== selectedDay) continue;
       const person = peopleById.get(String(record.trabajador_id));
       if (!person) continue;
+      if (person.tipo === "Apoyo") continue;
       if (!includeInactive && !person.activo) continue;
       const personRole = normalizeRole(person.rol);
       if (peopleScope === "operantes" && personRole !== "operante") continue;

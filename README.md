@@ -25,6 +25,8 @@ Antes de usar el interruptor **Personal de apoyo** en Usuarios, ejecuta
 en `usuarios` con `tipo = 'Apoyo'`; los demas usuarios tienen `tipo = 'Normal'`.
 La migracion convierte cualquier registro de apoyo creado con el esquema anterior,
 reasigna sus tareas e incidencias al ID de `usuarios` y elimina la tabla antigua.
+Despues ejecuta `sql/055_apoyo_sin_puntaje.sql` para dejar en cero los puntos
+historicos de apoyo y mantenerlos en cero en registros futuros.
 
 ## Temas por usuario
 

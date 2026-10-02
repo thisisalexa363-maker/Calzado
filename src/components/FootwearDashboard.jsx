@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { loadFootwearDashboard, updateGroupLeaderAverageReference, updateActivityRecord, deleteActivityRecord } from "../lib/repository";
 import { attendanceGroup } from "../lib/operations";
 import {
+  activitiesForCharts,
   averageEmployeeTenureMonths,
   buildLeaderOperationSummary,
   dashboardDateParts,
@@ -2468,6 +2469,7 @@ export default function FootwearDashboard({ onLogout }) {
     if (globalPeriodDay !== "all" && !globalAvailableDays.includes(Number(globalPeriodDay))) setGlobalPeriodDay("all");
   }, [globalPeriodDay, globalAvailableDays.join("|")]);
   const workerById = useMemo(() => new Map(WORKERS.map((worker) => [worker.id, worker])), [WORKERS]);
+  const chartActivities = activitiesForCharts(dashboardData?.activities, WORKERS);
   const taskById = useMemo(() => new Map(TASK_CATALOG.map((task) => [task.id, task])), [TASK_CATALOG]);
   const errorTaskById = useMemo(() => new Map(INCIDENT_TASKS.map((task) => [task.id, task])), [INCIDENT_TASKS]);
   const brandById = useMemo(() => new Map((dashboardData?.brands || []).map((brand) => [brand.id, brand.name])), [dashboardData]);
@@ -2500,7 +2502,7 @@ export default function FootwearDashboard({ onLogout }) {
   const allowedIncidentTaskIds = new Set(INCIDENT_TASKS
     .filter((task) => !selectedIncidentTaskIds.length || selectedIncidentTaskIds.includes(task.id))
     .map((task) => task.id));
-  const visibleActivities = (dashboardData?.activities || []).filter((row) => (
+  const visibleActivities = chartActivities.filter((row) => (
     matchesProductionDate(row.date)
     && matchesGlobalWorker(row.workerId)
     && (!selectedProductionRoles.length || selectedProductionRoles.includes(workerById.get(Number(row.workerId))?.role))
@@ -2518,7 +2520,7 @@ export default function FootwearDashboard({ onLogout }) {
   ));
 
   const operationalTaskIds = new Set(OPERATIONAL_TASKS.map((task) => Number(task.id)));
-  const operationalWorkerIds = new Set((dashboardData?.activities || [])
+  const operationalWorkerIds = new Set(chartActivities
     .filter((row) => operationalTaskIds.has(Number(row.taskId)))
     .map((row) => Number(row.workerId)));
   const eligibleProductionWorkers = WORKERS.filter((worker) => (
@@ -2580,13 +2582,13 @@ export default function FootwearDashboard({ onLogout }) {
     ...month,
     monthNumber: monthIndex + 1,
     year: CURRENT_LIMA_YEAR,
-    value: (dashboardData?.activities || []).filter((row) => (
+    value: chartActivities.filter((row) => (
       operationalTaskIds.has(Number(row.taskId))
       && Number(String(row.date || "").slice(0, 4)) === CURRENT_LIMA_YEAR
       && Number(String(row.date || "").slice(5, 7)) === monthIndex + 1
     )).length
   }));
-  const taskVolumeActivities = (dashboardData?.activities || []).filter((row) => {
+  const taskVolumeActivities = chartActivities.filter((row) => {
     if (!operationalTaskIds.has(Number(row.taskId))) return false;
     if (selectedProductionRoles.length && !selectedProductionRoles.includes(workerById.get(Number(row.workerId))?.role)) return false;
     return matchesGlobalPeriodDate(row.date);
@@ -2598,7 +2600,7 @@ export default function FootwearDashboard({ onLogout }) {
   // En los rankings el filtro de trabajador funciona como resaltado: se
   // conservan todos los nombres para no perder la comparacion ni la posicion.
   const rankingWorkers = eligibleProductionWorkers;
-  const rankingActivities = (dashboardData?.activities || []).filter((row) => matchesProductionDate(row.date));
+  const rankingActivities = chartActivities.filter((row) => matchesProductionDate(row.date));
   const leaderRankingActivities = rankingActivities.filter((row) => row.source === "jefe-equipo");
   const timedRankingTasks = OPERATIONAL_TASKS.filter((task) => task.requiresTime);
   const effectiveHourlyTaskId = timedRankingTasks.some((task) => String(task.id) === String(hourlyRankingTaskId))

@@ -263,6 +263,13 @@ export function taskVolumeRows(tasks, activities) {
   })).filter((item) => item.value > 0).sort((left, right) => right.value - left.value || left.name.localeCompare(right.name));
 }
 
+export function activitiesForCharts(activities, workers) {
+  const workerIds = new Set((workers || [])
+    .filter((worker) => worker.type !== "Apoyo")
+    .map((worker) => Number(worker.id)));
+  return (activities || []).filter((row) => workerIds.has(Number(row.workerId)));
+}
+
 export function workerProductionRows(workers, activities, selectedWorkerIds = []) {
   return workers.map((worker) => {
     const rows = activities.filter((row) => Number(row.workerId) === Number(worker.id));

@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import {
+  activitiesForCharts,
   averageEmployeeTenureMonths,
   buildDashboardPayroll,
   buildComparableIncidentMetrics,
@@ -11,6 +12,17 @@ import {
   timedActivityKpi,
   workerProductionRows
 } from "../src/lib/dashboardMetrics.js";
+
+test("apoyo aporta cantidad al resumen pero no aparece en graficas de produccion", () => {
+  const workers = [{ id: 1, type: "Normal" }, { id: 2, type: "Apoyo" }];
+  const activities = [
+    { source: "jefe-equipo", taskId: 1, workerId: 1, quantity: 20, minutes: 30 },
+    { source: "jefe-equipo", taskId: 1, workerId: 2, quantity: 10, minutes: 15 }
+  ];
+  const chartRows = activitiesForCharts(activities, workers);
+  assert.deepEqual(chartRows.map((row) => row.workerId), [1]);
+  assert.equal(buildLeaderOperationSummary(activities, [{ id: 1, name: "Etiquetado" }], "etiquetado").pairs, 30);
+});
 
 test("resume ingreso y despacho solo con registros del jefe de equipo", () => {
   const tasks = [

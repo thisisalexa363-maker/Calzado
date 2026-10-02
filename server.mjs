@@ -1560,7 +1560,8 @@ async function handleReadFootwearDashboard(request, response) {
     ]));
     const errorTaskById = new Map(errorTasks.map((task) => [Number(task.id), task]));
 
-    const safeWorkers = dashboardUsers.map((user) => ({
+    const supportUserIds = new Set(dashboardUsers.filter((user) => user.tipo === "Apoyo").map((user) => Number(user.id)));
+    const safeWorkers = dashboardUsers.filter((user) => user.tipo !== "Apoyo").map((user) => ({
       id: Number(user.id),
       name: String(personDisplayName(user) || `Usuario ${user.id}`),
       alias: String(user.tipo === "Apoyo" ? personDisplayName(user) : user.alias || user.nombre || `Usuario ${user.id}`),
@@ -1581,13 +1582,14 @@ async function handleReadFootwearDashboard(request, response) {
     }));
 
     const normalizeActivity = (row, source) => {
+      const isSupport = supportUserIds.has(Number(row.usuario_id || row.trabajador_id));
       const task = scoredTaskById.get(Number(row.tarea_id));
       const storedPoints = row.puntaje === null || row.puntaje === undefined ? null : Number(row.puntaje);
       const numericExtra = row.dato_extra === null || row.dato_extra === undefined || row.dato_extra === ""
         ? 0
         : Number(row.dato_extra);
       const minutes = Number(row.tiempo_minutos ?? (Number.isFinite(numericExtra) ? numericExtra : 0) ?? 0);
-      const fallbackPoints = task
+      const fallbackPoints = !isSupport && task
         ? calculatePoints(task, Number(row.cantidad || 0), minutes, source === "jefe-equipo" || Boolean(row.cumplimiento))
         : 0;
       return {
@@ -1606,8 +1608,8 @@ async function handleReadFootwearDashboard(request, response) {
         lote: String(row.lote || (!Number.isFinite(numericExtra) ? row.dato_extra : "") || "").trim() || null,
         labelingType: normalizeHangtag(row.tipo_etiquetado),
         observation: String(row.observacion || "").trim() || null,
-        points: Number.isFinite(storedPoints) ? storedPoints : Number(fallbackPoints || 0),
-        pointsStored: storedPoints !== null && Number.isFinite(storedPoints)
+        points: isSupport ? 0 : Number.isFinite(storedPoints) ? storedPoints : Number(fallbackPoints || 0),
+        pointsStored: isSupport || (storedPoints !== null && Number.isFinite(storedPoints))
       };
     };
 
@@ -1719,6 +1721,7 @@ async function handleReadFootwearDashboard(request, response) {
       payrollWorkersByMonth: payroll.workersByMonth,
       dataQuality: {
         activitiesWithoutStoredScore: [...visibleWorkerRecords, ...visibleLeaderRecords]
+          .filter((row) => !supportUserIds.has(Number(row.usuario_id || row.trabajador_id)))
           .filter((row) => row.puntaje === null || row.puntaje === undefined).length
       }
     });
@@ -4253,6 +4256,7 @@ async function loadGroupLeaderData() {
       nombre: personDisplayName(item),
       email: item.email,
       rol: item.rol,
+      tipo: item.tipo || "Normal",
       activo: isActive(item.activo)
     })),
     records: recordsWithTimes,
@@ -4751,13 +4755,12 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
   const task = await taskWithScoringRules(taskId);
   if (!task || !isGroupLeaderTimeTask(task)) throw invalidGroupRecord("Selecciona una tarea por tiempo valida.");
   if (!current && !isActive(task.activo)) throw invalidGroupRecord("La tarea seleccionada no esta activa.");
-  if (validateWorker) {
-    const workerResult = await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
-    if (workerResult.error) throw workerResult.error;
-    if (!workerResult.data || !isTimedTaskWorkerRole(workerResult.data.rol) || !isActive(workerResult.data.activo)) {
-      throw invalidGroupRecord("Selecciona una persona activa.");
-    }
+  const workerResult = await supabase.from("usuarios").select("id,rol,tipo,activo").eq("id", workerId).maybeSingle();
+  if (workerResult.error) throw workerResult.error;
+  if (!workerResult.data || (validateWorker && (!isTimedTaskWorkerRole(workerResult.data.rol) || !isActive(workerResult.data.activo)))) {
+    throw invalidGroupRecord("Selecciona una persona activa.");
   }
+  const isSupport = workerResult.data.tipo === "Apoyo";
   const metadata = await validateGroupRecordMetadata(body, task, current);
   // Sin hora de fin el registro queda pendiente: se guarda el inicio y se
   // cierra mas adelante desde el historial, con la cantidad real.
@@ -4770,6 +4773,7 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
         trabajador_id: workerId,
         tarea_id: taskId,
         cantidad: 0,
+        ...(isSupport ? { puntaje: 0 } : {}),
         ...groupLeaderRecordStartTiming(body.hora_inicio),
         ...metadata
       }
@@ -4789,6 +4793,7 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
       trabajador_id: workerId,
       tarea_id: taskId,
       cantidad: quantity,
+      ...(isSupport ? { puntaje: 0 } : {}),
       ...timing,
       ...metadata
     }
@@ -4867,7 +4872,8 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
       marca_id: payload.marca_id,
       tienda_id: payload.tienda_id,
       tipo_etiquetado: payload.tipo_etiquetado,
-      observacion: payload.observacion
+      observacion: payload.observacion,
+      ...(payload.puntaje === 0 ? { puntaje: 0 } : {})
     };
     const updateResult = await supabase
       .from("registros_tareas_jefe_equipo")
