@@ -12,6 +12,7 @@ import {
   createTienda,
   createTrainingCourse,
   createUser,
+  createSupportPerson,
   clearOperationalRecordsCache,
   deleteActivityReportSettings,
   deleteAmonestacion,
@@ -45,6 +46,7 @@ import {
   listOperationalRecords,
   listPenalizaciones,
   listPersonnelMovements,
+  listSupportPersonnel,
   listTasks,
   listTiendas,
   listTrainingCourses,
@@ -67,6 +69,7 @@ import {
   updateTienda,
   updateTrainingCourse,
   updateUser,
+  updateSupportPerson,
   updateGroupLeaderAverageReference
 } from "../lib/repository";
 import { birthdayMaxISO, formatDateLima, formatDateTimeLima, todayLimaISO } from "../lib/dates";
@@ -202,8 +205,8 @@ function AdminHelpButton({ section }) {
   );
 }
 
-export default function AdminDashboard({ section, user }) {
-  if (section === "Dashboard") return <FootwearDashboard />;
+export default function AdminDashboard({ section, user, onLogout }) {
+  if (section === "Dashboard") return <FootwearDashboard onLogout={onLogout} />;
   if (section === "Usuarios") return <><UsersPanel /><AdminHelpButton section="Usuarios" /></>;
   if (section === "Capacitaciones") return <><TrainingsPanel /><AdminHelpButton section="Capacitaciones" /></>;
   if (section === "Tareas") return <><TasksPanel /><AdminHelpButton section="Tareas" /></>;
@@ -216,7 +219,7 @@ export default function AdminDashboard({ section, user }) {
   if (section === "Registros") return <div className="admin-history-only"><GroupTimeDashboard user={user} /></div>;
   if (section === "Amonestaciones") return <><WarningsPanel /><AdminHelpButton section="Amonestaciones" /></>;
   if (section === "Documentos") return <><DocumentsPanel /><AdminHelpButton section="Documentos" /></>;
-  return <FootwearDashboard />;
+  return <FootwearDashboard onLogout={onLogout} />;
 }
 
 function AdminOperationalRecords() {
@@ -435,7 +438,7 @@ function PersonalDataFields({ form, setForm }) {
   return (
     <>
       <TextInput label="DNI" value={form.dni} onChange={(dni) => setForm({ ...form, dni })} maxLength={20} />
-      <SelectInput label="Sexo" value={form.sexo} onChange={(sexo) => setForm({ ...form, sexo })} options={sexoOptions.map((option) => ({ value: option, label: option }))} />
+      <SelectInput label="Sexo" value={form.sexo} onChange={(sexo) => setForm({ ...form, sexo })} options={withBlank(sexoOptions)} />
       <TextInput label="Telefono" value={form.telefono} onChange={(telefono) => setForm({ ...form, telefono })} maxLength={30} />
       <TextInput label="Telefono de emergencia" value={form.telefono_emergencia} onChange={(telefono_emergencia) => setForm({ ...form, telefono_emergencia })} maxLength={30} />
       <TextInput label="Distrito" value={form.distrito} onChange={(distrito) => setForm({ ...form, distrito })} maxLength={120} />
@@ -509,13 +512,93 @@ function StatusAlert({ status }) {
   return <Alert type={status.type}>{status.message}</Alert>;
 }
 
+function emptySupportPerson() {
+  return { nombres: "", apellidos: "", dni: "" };
+}
+
+function SupportPersonnelSection() {
+  const { data: people = [], loading, error, reload } = useAsyncData(listSupportPersonnel, [], []);
+  const [editId, setEditId] = useState("");
+  const [form, setForm] = useState(emptySupportPerson);
+  const [saving, setSaving] = useState(false);
+  const [status, setStatus] = useState(null);
+
+  function selectPerson(id) {
+    setEditId(id);
+    const person = people.find((item) => String(item.id) === id);
+    setForm(person ? { nombres: person.nombres || "", apellidos: person.apellidos || "", dni: person.dni || "" } : emptySupportPerson());
+    setStatus(null);
+  }
+
+  async function save(event) {
+    event.preventDefault();
+    setStatus(null);
+    if (!form.nombres.trim() || !form.apellidos.trim() || !/^[0-9]{8}$/.test(form.dni.trim())) {
+      setStatus({ type: "error", message: "Completa nombres, apellidos y un DNI de 8 digitos." });
+      return;
+    }
+    setSaving(true);
+    try {
+      await updateSupportPerson(editId, {
+        nombres: form.nombres.trim(), apellidos: form.apellidos.trim(), dni: form.dni.trim()
+      });
+      setStatus({ type: "success", message: "Personal de apoyo actualizado." });
+      setEditId("");
+      setForm(emptySupportPerson());
+      await reload();
+    } catch (err) {
+      setStatus({ type: "error", message: friendlyError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function togglePerson(person) {
+    setStatus(null);
+    setSaving(true);
+    try {
+      await updateSupportPerson(person.id, { activo: !person.activo });
+      await reload();
+      setStatus({ type: "success", message: `${person.nombres} ${person.apellidos} ${person.activo ? "deshabilitado" : "habilitado"}.` });
+    } catch (err) {
+      setStatus({ type: "error", message: friendlyError(err) });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="stack">
+      <Alert>Para agregar personal de apoyo, usa el interruptor en Crear. Estas personas no tienen acceso al sistema.</Alert>
+      {loading ? <LoadingBlock /> : <div className="support-personnel-list">
+        {people.length ? people.map((person) => <div className="support-personnel-row" key={person.id}>
+          <span><strong>{person.nombres} {person.apellidos}</strong> (Apoyo operativo)<small>DNI {person.dni} · {person.activo ? "Habilitado" : "Deshabilitado"}</small></span>
+          <Button variant="secondary" onClick={() => selectPerson(String(person.id))}>Editar</Button>
+          <Button variant="secondary" disabled={saving} onClick={() => togglePerson(person)}>{person.activo ? "Deshabilitar" : "Habilitar"}</Button>
+        </div>) : <Alert>No hay personal de apoyo registrado.</Alert>}
+      </div>}
+      {error ? <Alert type="error">{friendlyError(error)}</Alert> : null}
+      {editId ? <form className="form-grid" onSubmit={save}>
+        <TextInput label="Nombres" required maxLength={100} value={form.nombres} onChange={(nombres) => setForm({ ...form, nombres })} />
+        <TextInput label="Apellidos" required maxLength={100} value={form.apellidos} onChange={(apellidos) => setForm({ ...form, apellidos })} />
+        <TextInput label="DNI" required maxLength={8} value={form.dni} onChange={(dni) => setForm({ ...form, dni })} />
+        <div className="form-span"><Button type="submit" icon={Save} loading={saving}>Guardar cambios</Button> <Button variant="secondary" onClick={() => selectPerson("")}>Cancelar</Button></div>
+      </form> : null}
+      <StatusAlert status={status} />
+    </div>
+  );
+}
+
 function UsersPanel() {
   const { data: users = [], loading, error, reload } = useAsyncData(selectUsers, [], []);
+  const [listTab, setListTab] = useState("Usuarios");
   const [tab, setTab] = useState("Crear");
   const [status, setStatus] = useState(null);
   const [saving, setSaving] = useState(false);
   const [showInactive, setShowInactive] = useState(false);
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [createSupport, setCreateSupport] = useState(false);
+  const [supportForm, setSupportForm] = useState(emptySupportPerson);
   const [createForm, setCreateForm] = useState({
     nombre: "",
     email: "",
@@ -573,6 +656,25 @@ function UsersPanel() {
   async function handleCreate(event) {
     event.preventDefault();
     setStatus(null);
+    if (createSupport) {
+      if (!supportForm.nombres.trim() || !supportForm.apellidos.trim() || !/^[0-9]{8}$/.test(supportForm.dni.trim())) {
+        setStatus({ type: "error", message: "Completa nombres, apellidos y un DNI de 8 digitos." });
+        return;
+      }
+      setSaving(true);
+      try {
+        await createSupportPerson({
+          nombres: supportForm.nombres.trim(), apellidos: supportForm.apellidos.trim(), dni: supportForm.dni.trim()
+        });
+        setSupportForm(emptySupportPerson());
+        setStatus({ type: "success", message: "Personal de apoyo registrado." });
+      } catch (err) {
+        setStatus({ type: "error", message: friendlyError(err) });
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
     if (!createForm.nombre.trim() || !createForm.email.trim() || !createForm.password) {
       setStatus({ type: "error", message: "Nombre, usuario y contrasena son obligatorios." });
       return;
@@ -716,6 +818,8 @@ function UsersPanel() {
 
   return (
     <div className="stack">
+      <Tabs tabs={["Usuarios", "Listado de personal de apoyo"]} active={listTab} onChange={setListTab} />
+      {listTab === "Usuarios" ? <>
       <Panel
         title="Gestion de usuarios"
         eyebrow="Administracion"
@@ -754,6 +858,13 @@ function UsersPanel() {
 
         {tab === "Crear" ? (
           <form className="form-grid" onSubmit={handleCreate}>
+            <div className="support-type-switch"><SwitchInput label="Personal de apoyo" checked={createSupport} onChange={setCreateSupport} onLabel="Si" offLabel="No" hint="Registro sin cuenta de acceso" /></div>
+            {createSupport ? <>
+              <TextInput label="Nombres *" required maxLength={100} value={supportForm.nombres} onChange={(nombres) => setSupportForm({ ...supportForm, nombres })} />
+              <TextInput label="Apellidos *" required maxLength={100} value={supportForm.apellidos} onChange={(apellidos) => setSupportForm({ ...supportForm, apellidos })} />
+              <TextInput label="DNI *" required maxLength={8} value={supportForm.dni} onChange={(dni) => setSupportForm({ ...supportForm, dni })} />
+              <div className="form-span"><Button type="submit" icon={Plus} loading={saving}>Registrar personal de apoyo</Button></div>
+            </> : <>
             <TextInput label="Nombres" value={createForm.nombre} onChange={(nombre) => setCreateForm({ ...createForm, nombre })} />
             <TextInput label="Usuario o correo" value={createForm.email} onChange={(email) => setCreateForm({ ...createForm, email })} />
             <TextInput label="Nombres y Apellidos" value={createForm.nombres_completos} onChange={(nombres_completos) => setCreateForm({ ...createForm, nombres_completos })} maxLength={200} />
@@ -796,6 +907,7 @@ function UsersPanel() {
             <div className="form-span">
               <Button type="submit" icon={Plus} loading={saving}>Crear usuario</Button>
             </div>
+            </>}
           </form>
         ) : null}
 
@@ -888,6 +1000,7 @@ function UsersPanel() {
         {tab !== "Reingresos" ? <StatusAlert status={status} /> : null}
       </Panel>
       {tab === "Reingresos" ? <RehiresSection /> : null}
+      </> : <Panel title="Listado de personal de apoyo" eyebrow="Administracion"><SupportPersonnelSection /></Panel>}
       {confirmingDelete && selectedUser ? (
         <div
           className="delete-confirm-overlay"

@@ -91,7 +91,7 @@ test("calidad compara solo tareas con registros operativos y excluye procesos ge
   assert.equal(metrics.margin, 2 / 3 * 100);
 });
 
-test("permanencia acumula reingresos, cierra periodos abiertos hoy y promedia por trabajador", () => {
+test("permanencia acumula reingresos y promedia solo periodos laborales cerrados", () => {
   const tenure = averageEmployeeTenureMonths([
     { id: 1, usuario_id: 1, tipo_movimiento: "Ingreso", fecha_movimiento: "2024-01-01" },
     { id: 2, usuario_id: 1, tipo_movimiento: "Salida", fecha_movimiento: "2024-07-01" },
@@ -105,11 +105,11 @@ test("permanencia acumula reingresos, cierra periodos abiertos hoy y promedia po
     allowedWorkerIds: new Set([1, 2])
   });
 
-  assert.equal(tenure.workerCount, 2);
+  assert.equal(tenure.workerCount, 1);
   assert.equal(tenure.daysByWorker.get(1), 364);
-  assert.equal(tenure.daysByWorker.get(2), 181);
-  assert.equal(tenure.totalDays, 545);
-  assert.equal(tenure.months, 545 / 2 / 30.4375);
+  assert.equal(tenure.daysByWorker.has(2), false);
+  assert.equal(tenure.totalDays, 364);
+  assert.equal(tenure.months, 364 / 30.4375);
 });
 
 test("pares por marca usa solo Etiquetado y suma cantidades reales", () => {

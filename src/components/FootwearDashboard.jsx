@@ -798,7 +798,7 @@ function LoteDurationChart({ lots }) {
         compact
         primaryLabel="Días de clasificado"
         secondaryLabel="Días de etiquetado"
-        secondaryColor="#e7c42d"
+        secondaryColor="var(--pbi-gold)"
         tooltipFormatter={(item) => ({
           value: `Etiquetado: ${item.labelingDays === null ? "Sin dato" : `${numberFormatter.format(item.labelingDays)} día${item.labelingDays === 1 ? "" : "s"}`} · Clasificado: ${item.classificationDays === null ? "Sin dato" : `${numberFormatter.format(item.classificationDays)} día${item.classificationDays === 1 ? "" : "s"}`}`,
           detail: [
@@ -945,7 +945,7 @@ function VerticalBarChart({ id, data, ariaLabel, tone = "gold", unit = "", onSel
   const maximum = Math.max(...data.flatMap((item) => [Number(item.value || 0), Number(item.secondaryValue || 0)]), 1) * 1.12;
   const step = innerWidth / data.length;
   const barWidth = Math.min(58, step * 0.5);
-  const fill = tone === "blue" ? "#0a4f87" : "#e7c42d";
+  const fill = tone === "blue" ? "var(--pbi-blue)" : "var(--pbi-gold)";
   const animationKey = data.map((item) => `${item.name}:${item.value}:${item.secondaryValue || 0}`).join("|");
 
   return (
@@ -1057,7 +1057,7 @@ function LineChart({ id, data, ariaLabel, valueFormatter = (value) => numberForm
   }));
   const linePath = points.map((point, index) => `${index === 0 ? "M" : "L"}${point.x},${point.y}`).join(" ");
   const areaPath = `${linePath} L${points[points.length - 1].x},${top + innerHeight} L${points[0].x},${top + innerHeight} Z`;
-  const color = tone === "gold" ? "#e7bd22" : "#0a4f87";
+  const color = tone === "gold" ? "var(--pbi-gold)" : "var(--pbi-blue)";
   const animationKey = data.map((item) => `${item.label}:${item.value}`).join("|");
 
   // Linea vertical que sigue al mouse: convierte la posicion del puntero a
@@ -1204,7 +1204,7 @@ function LineChart({ id, data, ariaLabel, valueFormatter = (value) => numberForm
   );
 }
 
-function HorizontalBars({ data, ariaLabel, color = "#0a4f87", valueFormatter = (value) => numberFormatter.format(value), onSelect, selectedNames = [] }) {
+function HorizontalBars({ data, ariaLabel, color = "var(--pbi-blue)", valueFormatter = (value) => numberFormatter.format(value), onSelect, selectedNames = [] }) {
   const [tooltip, setTooltip] = useState(null);
   if (!data.length) return <p className="pbi-chart-empty">No hay datos para el filtro seleccionado.</p>;
   const maximum = Math.max(...data.map((item) => item.value), 1);
@@ -2265,7 +2265,7 @@ function productionUnit(task) {
   return configured || "unidades";
 }
 
-export default function FootwearDashboard() {
+export default function FootwearDashboard({ onLogout }) {
   const dashboardRef = useRef(null);
   const dashboardRequestRef = useRef(null);
   const [isFullscreen, setIsFullscreen] = useState(false);
@@ -2278,6 +2278,7 @@ export default function FootwearDashboard() {
   });
   const [dashboardData, setDashboardData] = useState(null);
   const [dashboardError, setDashboardError] = useState("");
+  const [sessionExpired, setSessionExpired] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [selectedRoles, setSelectedRoles] = useState([]);
   const [globalPeriodYear, setGlobalPeriodYear] = useState(String(CURRENT_LIMA_YEAR));
@@ -2318,8 +2319,14 @@ export default function FootwearDashboard() {
       const payload = await loadFootwearDashboard({ signal: controller.signal });
       setDashboardData(payload);
       setDashboardError("");
+      setSessionExpired(false);
     } catch (error) {
-      if (error?.name !== "AbortError") setDashboardError(error.message || "No se pudo actualizar el dashboard.");
+      if (error?.name !== "AbortError") {
+        const isExpiredSession = error?.status === 401
+          || /sesion de administrador no es valida|sesi.n de administrador no es v.lida/i.test(String(error?.message || ""));
+        setSessionExpired(isExpiredSession);
+        setDashboardError(isExpiredSession ? "" : (error.message || "No se pudo actualizar el dashboard."));
+      }
     } finally {
       if (dashboardRequestRef.current === controller) {
         dashboardRequestRef.current = null;
@@ -3262,6 +3269,17 @@ export default function FootwearDashboard() {
           </div>
         </header>
 
+        {sessionExpired ? (
+          <div className="pbi-session-expired-overlay" role="dialog" aria-modal="true" aria-labelledby="pbi-session-expired-title">
+            <div className="pbi-session-expired-dialog">
+              <div className="pbi-session-expired-icon" aria-hidden="true">!</div>
+              <h2 id="pbi-session-expired-title">Sesión caducada</h2>
+              <p>Tu sesión de administrador ha caducado. Cierra sesión e ingresa nuevamente.</p>
+              <button type="button" onClick={onLogout}>Cerrar sesión</button>
+            </div>
+          </div>
+        ) : null}
+
         {dashboardError ? (
           <div className="pbi-data-alert" role="alert">
             <strong>No se pudo sincronizar.</strong>
@@ -3476,7 +3494,7 @@ export default function FootwearDashboard() {
                     </select>
                   </div>
                   <div className="pbi-ranking-scroll">
-                    <HorizontalBars data={quantityWorkerRanking} ariaLabel={`Ranking de todos los trabajadores por cantidad de pares en ${effectiveQuantityTask?.shortName || "la tarea seleccionada"}`} color="#e1c233" valueFormatter={(value) => `${numberFormatter.format(value)} pares`} selectedNames={selectedWorkerNames} />
+                    <HorizontalBars data={quantityWorkerRanking} ariaLabel={`Ranking de todos los trabajadores por cantidad de pares en ${effectiveQuantityTask?.shortName || "la tarea seleccionada"}`} color="var(--pbi-gold)" valueFormatter={(value) => `${numberFormatter.format(value)} pares`} selectedNames={selectedWorkerNames} />
                   </div>
                 </Card>
 
@@ -3493,7 +3511,7 @@ export default function FootwearDashboard() {
                     </select>
                   </div>
                   <div className="pbi-ranking-scroll">
-                    <HorizontalBars data={hourlyWorkerRanking} ariaLabel={`Ranking de todos los trabajadores por promedio por hora en ${effectiveHourlyTask?.shortName || "la tarea seleccionada"}`} color="#0a4f87" valueFormatter={(value) => `${numberFormatter.format(value)} ${productionUnit(effectiveHourlyTask)}/h`} onSelect={(item) => setHourlyRankingWorkerId(item.id)} selectedNames={selectedWorkerNames} />
+                    <HorizontalBars data={hourlyWorkerRanking} ariaLabel={`Ranking de todos los trabajadores por promedio por hora en ${effectiveHourlyTask?.shortName || "la tarea seleccionada"}`} color="var(--pbi-blue)" valueFormatter={(value) => `${numberFormatter.format(value)} ${productionUnit(effectiveHourlyTask)}/h`} onSelect={(item) => setHourlyRankingWorkerId(item.id)} selectedNames={selectedWorkerNames} />
                   </div>
                 </Card>
 
@@ -3535,7 +3553,7 @@ export default function FootwearDashboard() {
                     <HorizontalBars
                       data={staticTaskVolume}
                       ariaLabel="Volumen de registros por tipo de tarea"
-                      color="#0a4f87"
+                      color="var(--pbi-blue)"
                     />
                   </div>
                 </Card>
@@ -3769,8 +3787,8 @@ export default function FootwearDashboard() {
                     ariaLabel={`Porcentaje de ${qualityLabel.toLowerCase()} de contenido y liberados por turno`}
                     primaryLabel="CONTENIDO"
                     secondaryLabel="LIBERADO"
-                    primaryColor="#0a4f87"
-                    secondaryColor="#e1c233"
+                    primaryColor="var(--pbi-blue)"
+                    secondaryColor="var(--pbi-gold)"
                     valueFormatter={(value) => `${oneDecimalFormatter.format(value)}%`}
                     maximumValue={100}
                     onSeriesSelect={(item, series) => {
@@ -3797,7 +3815,7 @@ export default function FootwearDashboard() {
                   <HorizontalBars
                     data={filteredErrorsByOffender}
                     ariaLabel="Errores agrupados por usuario o área que cometió el error"
-                    color="#0a4f87"
+                    color="var(--pbi-blue)"
                     onSelect={(item) => {
                       if (item.rows?.length) setSelectedErrorDetail({
                         errorType: item.offenderName,

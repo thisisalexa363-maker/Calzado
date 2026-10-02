@@ -23,6 +23,12 @@ export default function App() {
   const [user, setUser] = useState(readStoredUser);
   const [adminSection, setAdminSection] = useState("Dashboard");
 
+  const handleLogout = () => {
+    clearApiSession();
+    clearApplicationSessionState();
+    setUser(null);
+  };
+
   useEffect(() => {
     if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user));
     else localStorage.removeItem(SESSION_KEY);
@@ -34,16 +40,13 @@ export default function App() {
 
   return (
     <Layout
+      key={user.id}
       user={user}
       adminSection={adminSection}
       onAdminSectionChange={setAdminSection}
-      onLogout={() => {
-        clearApiSession();
-        clearApplicationSessionState();
-        setUser(null);
-      }}
+      onLogout={handleLogout}
     >
-      {role === "administrador" ? <AdminDashboard section={adminSection} user={user} /> : null}
+      {role === "administrador" ? <AdminDashboard section={adminSection} user={user} onLogout={handleLogout} /> : null}
       {role === "operante" ? <WorkerDashboard user={user} /> : null}
       {["lider de equipo", "otros"].includes(role) ? <GroupLeaderDashboard user={user} /> : null}
       {!["administrador", "operante", "lider de equipo", "otros"].includes(role) ? (

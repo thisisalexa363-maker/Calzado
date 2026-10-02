@@ -236,6 +236,25 @@ export async function selectUsers() {
   return ensureOk(await db().from("usuarios").select("*").order("id", { ascending: true })) || [];
 }
 
+export async function listSupportPersonnel() {
+  const result = await requestLocalApi("/api/support-personnel", {}, { requiredBackend: true });
+  return result.people || [];
+}
+
+export async function createSupportPerson(payload) {
+  const result = await requestLocalApi("/api/support-personnel", {
+    method: "POST", body: JSON.stringify(payload)
+  }, { requiredBackend: true });
+  return result.person;
+}
+
+export async function updateSupportPerson(id, payload) {
+  const result = await requestLocalApi(`/api/support-personnel/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify(payload)
+  }, { requiredBackend: true });
+  return result.person;
+}
+
 // Usado solo por el panel de Asistencia: ahi se marca a cualquier persona
 // del sistema (incluye administradores, jefes de grupo y "otros"), no solo a
 // quienes ejecutan tareas operativas.
@@ -321,6 +340,19 @@ export function clearApiSession() {
   } catch {
     // Nada que limpiar si storage no esta disponible.
   }
+}
+
+export async function loadUserThemePreference() {
+  const result = await requestLocalApi("/api/user-theme", {}, { requiredBackend: true });
+  return result.preference;
+}
+
+export async function saveUserThemePreference(preference) {
+  const result = await requestLocalApi("/api/user-theme", {
+    method: "PUT",
+    body: JSON.stringify(preference)
+  }, { requiredBackend: true });
+  return result.preference;
 }
 
 export async function createUser(payload, plainPassword) {

@@ -38,6 +38,62 @@
   box-shadow: var(--shadow-soft, 0 14px 34px rgba(0, 0, 0, 0.24));
 }
 
+body[data-app-theme="purple"] .pbi-dashboard-shell {
+  --pbi-blue: #a78bfa;
+  --pbi-blue-dark: #6d28d9;
+  --pbi-blue-soft: #d8b4fe;
+  --pbi-blue-ink: #c4b5fd;
+  --pbi-canvas: #160f24;
+  --pbi-card: #241735;
+  --pbi-card-raised: #332149;
+  --pbi-gold: #d8b4fe;
+  --pbi-gold-dark: #9333ea;
+  --pbi-line: rgba(216, 180, 254, 0.2);
+  --pbi-line-strong: rgba(216, 180, 254, 0.34);
+}
+
+body[data-app-theme="pink"] .pbi-dashboard-shell {
+  --pbi-blue: #f472b6;
+  --pbi-blue-dark: #be185d;
+  --pbi-blue-soft: #f9a8d4;
+  --pbi-blue-ink: #f9a8d4;
+  --pbi-canvas: #211017;
+  --pbi-card: #301622;
+  --pbi-card-raised: #472131;
+  --pbi-gold: #fda4af;
+  --pbi-gold-dark: #e11d48;
+  --pbi-line: rgba(253, 164, 175, 0.2);
+  --pbi-line-strong: rgba(253, 164, 175, 0.34);
+}
+
+body[data-app-theme="gold"] .pbi-dashboard-shell {
+  --pbi-blue: #f5c451;
+  --pbi-blue-dark: #9a6812;
+  --pbi-blue-soft: #fde68a;
+  --pbi-blue-ink: #f5c451;
+  --pbi-canvas: #0d0b07;
+  --pbi-card: #1d1910;
+  --pbi-card-raised: #302818;
+  --pbi-gold: #d99b26;
+  --pbi-gold-dark: #a16207;
+  --pbi-line: rgba(245, 196, 81, 0.2);
+  --pbi-line-strong: rgba(245, 196, 81, 0.36);
+}
+
+body[data-app-theme="green"] .pbi-dashboard-shell {
+  --pbi-blue: #4ade80;
+  --pbi-blue-dark: #15803d;
+  --pbi-blue-soft: #86efac;
+  --pbi-blue-ink: #4ade80;
+  --pbi-canvas: #07150d;
+  --pbi-card: #0e2517;
+  --pbi-card-raised: #173924;
+  --pbi-gold: #a3e635;
+  --pbi-gold-dark: #65a30d;
+  --pbi-line: rgba(134, 239, 172, 0.2);
+  --pbi-line-strong: rgba(134, 239, 172, 0.34);
+}
+
 .pbi-dashboard-shell,
 .pbi-dashboard-shell *,
 .pbi-dashboard-shell *::before,
@@ -327,6 +383,73 @@
   background: var(--pbi-card);
   color: inherit;
   font-weight: 800;
+}
+
+.pbi-session-expired-overlay {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  padding: 1.25rem;
+  background: rgba(3, 12, 20, 0.72);
+  backdrop-filter: blur(5px);
+}
+
+.pbi-session-expired-dialog {
+  width: min(100%, 430px);
+  padding: 2rem;
+  border: 1px solid rgba(45, 212, 191, 0.38);
+  border-radius: 20px;
+  background: #10221f;
+  color: #f8fafc;
+  text-align: center;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.46);
+}
+
+.pbi-session-expired-icon {
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1rem;
+  border-radius: 50%;
+  background: #facc15;
+  color: #173832;
+  font-size: 2rem;
+  font-weight: 900;
+}
+
+.pbi-session-expired-dialog h2 {
+  margin: 0;
+  font-size: 1.65rem;
+}
+
+.pbi-session-expired-dialog p {
+  margin: 0.75rem 0 1.5rem;
+  color: #cbd5e1;
+  line-height: 1.55;
+}
+
+.pbi-session-expired-dialog button {
+  min-width: 170px;
+  padding: 0.75rem 1.25rem;
+  border: 0;
+  border-radius: 10px;
+  background: #14b8a6;
+  color: #062c27;
+  font: inherit;
+  font-weight: 900;
+  cursor: pointer;
+}
+
+.pbi-session-expired-dialog button:hover {
+  background: #2dd4bf;
+}
+
+.pbi-session-expired-dialog button:focus-visible {
+  outline: 3px solid rgba(250, 204, 21, 0.75);
+  outline-offset: 3px;
 }
 
 @keyframes pbi-refresh-spin {
@@ -5967,4 +6090,272 @@ body[data-pbi-theme="light"] .pbi-kpi--birthday .pbi-birthday-date {
   .pbi-floating-period-panel.is-collapsed {
     transform: translateX(calc(100% + 0.65rem));
   }
+}
+
+/* Integracion con los temas generales. El dashboard predeterminado no cambia. */
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-dashboard-shell, .pbi-visual-modal) {
+  --pbi-blue: var(--accent);
+  --pbi-blue-dark: var(--accent-dark);
+  --pbi-blue-soft: var(--theme-accent-highlight);
+  --pbi-blue-ink: var(--theme-accent-highlight);
+  --pbi-canvas: var(--bg);
+  --pbi-card: var(--surface-solid);
+  --pbi-card-raised: var(--surface-strong);
+  --pbi-gold: var(--gold);
+  --pbi-gold-dark: var(--gold);
+  --pbi-ink: var(--text);
+  --pbi-ink-strong: var(--text-strong);
+  --pbi-muted: var(--muted);
+  --pbi-line: var(--border);
+  --pbi-line-strong: var(--border-strong);
+  --pbi-tint: var(--surface-soft);
+  --pbi-tint-strong: var(--accent-soft);
+  color: var(--pbi-ink);
+  color-scheme: dark;
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard {
+  background:
+    radial-gradient(circle at 8% 4%, var(--accent-soft), transparent 27rem),
+    radial-gradient(circle at 92% 16%, var(--gold-soft), transparent 24rem),
+    linear-gradient(145deg, var(--bg-deep), var(--pbi-canvas) 48%, var(--surface-solid));
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-topbar {
+  border-bottom-color: color-mix(in srgb, var(--pbi-blue) 68%, transparent);
+  background: linear-gradient(110deg, var(--pbi-card-raised), var(--pbi-card));
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), inset 0 -2px 0 color-mix(in srgb, var(--pbi-blue) 52%, transparent);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-header {
+  border-bottom-color: var(--pbi-line);
+  background: linear-gradient(120deg, var(--pbi-card-raised), var(--pbi-card));
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-brand {
+  border-color: color-mix(in srgb, var(--pbi-blue) 36%, var(--pbi-line));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--pbi-blue) 14%, var(--pbi-card-raised)), var(--pbi-card));
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.24), inset 4px 0 0 var(--pbi-blue);
+}
+
+/* El estado de sincronización debe usar la superficie del tema. Antes conservaba
+   un fondo verde fijo, lo que reducía mucho el contraste con los acentos morado,
+   rosa, dorado y verde. */
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-header-status {
+  border-color: color-mix(in srgb, var(--pbi-blue) 46%, var(--pbi-line));
+  background: var(--pbi-card-raised);
+  color: var(--pbi-ink-strong);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-status-dot {
+  background: var(--pbi-blue);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--pbi-blue) 28%, transparent);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-report-section, .pbi-kpi, .pbi-card) {
+  border-color: var(--pbi-line-strong);
+  background: linear-gradient(155deg, color-mix(in srgb, var(--pbi-blue) 5%, transparent), transparent 46%), var(--pbi-card);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-kpi { border-top-color: color-mix(in srgb, var(--pbi-blue) 72%, transparent); }
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-kpi:hover, .pbi-card:hover) {
+  border-color: color-mix(in srgb, var(--pbi-blue) 58%, transparent);
+  box-shadow: 0 18px 42px color-mix(in srgb, var(--pbi-blue) 14%, transparent);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-card-header {
+  border-bottom: 1px solid var(--pbi-line);
+  background: linear-gradient(110deg, color-mix(in srgb, var(--pbi-blue) 10%, var(--pbi-card-raised)), var(--pbi-card-raised));
+  color: var(--pbi-ink-strong);
+  box-shadow: inset 3px 0 0 var(--pbi-blue);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-floating-period-panel, .pbi-slicer-dropdown, .pbi-slicer-popover, .pbi-tooltip) {
+  border-color: var(--pbi-line-strong);
+  background: color-mix(in srgb, var(--pbi-card) 97%, black);
+  color: var(--pbi-ink);
+  box-shadow: 0 18px 42px rgba(0, 0, 0, 0.34);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-filter, .pbi-slicer, .pbi-compact-check, .pbi-brand-only-filter, .pbi-powerbi-date-filter) {
+  border-color: var(--pbi-line-strong);
+  background: var(--pbi-card-raised);
+  color: var(--pbi-ink);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-filter-control select, .pbi-filter > input, .pbi-floating-period-panel select, .pbi-ranking-task-filter select, .pbi-visual-filter select, .pbi-lot-progress-head select),
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-visual-modal :is(.pbi-hourly-modal-fields select, .pbi-hourly-modal-fields input, .pbi-record-edit-form select, .pbi-record-edit-form input, .pbi-record-edit-form textarea, .pbi-hourly-reference-editor input) {
+  border-color: var(--pbi-line-strong);
+  background: var(--theme-control);
+  color: var(--pbi-ink-strong);
+  color-scheme: dark;
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-filter-control select, .pbi-filter > input, .pbi-floating-period-panel select, .pbi-ranking-task-filter select, .pbi-visual-filter select, .pbi-lot-progress-head select):focus-visible,
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-visual-modal :is(input, select, textarea):focus-visible {
+  border-color: var(--pbi-blue);
+  outline: 3px solid color-mix(in srgb, var(--pbi-blue) 24%, transparent);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-slicer-label, .pbi-filter-label, .pbi-slicer-select-all, .pbi-slicer-action, .pbi-slicer-option, .pbi-compact-check, .pbi-powerbi-date-filter > legend, .pbi-slicer-value, .pbi-slicer-summary) {
+  color: var(--pbi-ink-strong);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-slicer-search, .pbi-date-preview > span, .pbi-slicer-checkbox) {
+  border-color: var(--pbi-line-strong);
+  background: var(--theme-control);
+  color: var(--pbi-ink);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-slicer-search input, .pbi-slicer-search-input) {
+  color: var(--pbi-ink-strong);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-slicer-option:hover, .pbi-slicer-option.is-selected, .pbi-slicer-option--selected, .pbi-slicer-option[aria-selected="true"], .pbi-slicer-option[aria-checked="true"], .pbi-date-month-all.is-selected, .pbi-date-day.is-selected) {
+  background: var(--pbi-tint-strong);
+  color: var(--pbi-ink-strong);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(.pbi-table-wrap, .pbi-table-scroll) {
+  border-color: var(--pbi-line);
+  background: var(--pbi-card);
+  scrollbar-color: var(--pbi-blue) var(--pbi-card);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell :is(th, .pbi-table-head) {
+  background: var(--pbi-card-raised);
+  color: var(--pbi-gold);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-visual-modal {
+  background: color-mix(in srgb, var(--bg-deep) 84%, transparent);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-visual-modal-dialog, .pbi-record-edit-dialog, .pbi-record-delete-dialog) {
+  border-color: var(--pbi-line-strong);
+  background: var(--pbi-card);
+  color: var(--pbi-ink);
+}
+
+/* Matriz de asistencia: codigos con contraste alto en todos los temas. */
+.pbi-attendance-matrix {
+  --attendance-present-bg: #bcecc8;
+  --attendance-present-text: #111111;
+  --attendance-late-bg: #f3c75d;
+  --attendance-late-text: #111111;
+  --attendance-absent-bg: #e98ba0;
+  --attendance-absent-text: #111111;
+  --attendance-half-bg: #c697d8;
+  --attendance-half-text: #111111;
+  --attendance-support-bg: #77c6e2;
+  --attendance-support-text: #111111;
+  --attendance-permission-bg: #f0d170;
+  --attendance-permission-text: #111111;
+  --attendance-medical-bg: #aabceb;
+  --attendance-medical-text: #111111;
+  --attendance-suspended-bg: #ef7774;
+  --attendance-suspended-text: #111111;
+}
+
+.pbi-attendance-matrix-legend {
+  color: var(--pbi-ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+}
+
+.pbi-attendance-matrix-legend i {
+  width: 12px;
+  height: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.28);
+}
+
+.pbi-attendance-matrix thead small {
+  color: var(--pbi-ink);
+  font-size: 0.63rem;
+  font-weight: 900;
+}
+
+.pbi-attendance-matrix td:not(.is-empty) {
+  color: #111111;
+  font-size: 0.74rem;
+  font-weight: 1000;
+  letter-spacing: 0.025em;
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.32);
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.1);
+}
+
+.pbi-attendance-matrix .is-present { background: var(--attendance-present-bg); }
+.pbi-attendance-matrix td.is-present { color: var(--attendance-present-text); }
+.pbi-attendance-matrix .is-late { background: var(--attendance-late-bg); }
+.pbi-attendance-matrix td.is-late { color: var(--attendance-late-text); }
+.pbi-attendance-matrix .is-absent { background: var(--attendance-absent-bg); }
+.pbi-attendance-matrix td.is-absent { color: var(--attendance-absent-text); }
+.pbi-attendance-matrix .is-half { background: var(--attendance-half-bg); }
+.pbi-attendance-matrix td.is-half { color: var(--attendance-half-text); }
+.pbi-attendance-matrix .is-support { background: var(--attendance-support-bg); }
+.pbi-attendance-matrix td.is-support { color: var(--attendance-support-text); }
+.pbi-attendance-matrix .is-permission { background: var(--attendance-permission-bg); }
+.pbi-attendance-matrix td.is-permission { color: var(--attendance-permission-text); }
+.pbi-attendance-matrix .is-medical { background: var(--attendance-medical-bg); }
+.pbi-attendance-matrix td.is-medical { color: var(--attendance-medical-text); }
+.pbi-attendance-matrix .is-suspended { background: var(--attendance-suspended-bg); }
+.pbi-attendance-matrix td.is-suspended {
+  color: var(--attendance-suspended-text);
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.32);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-dashboard-shell {
+  border-color: #000;
+  box-shadow: 0 0 0 1px #000, var(--pbi-shadow);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-icon-btn, .pbi-fullscreen-btn) {
+  border-color: #000;
+  background: color-mix(in srgb, var(--pbi-blue) 7%, var(--pbi-card-raised));
+  color: var(--pbi-ink-strong);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-icon-btn, .pbi-fullscreen-btn):hover {
+  border-color: var(--pbi-blue);
+  background: var(--pbi-blue);
+  color: var(--theme-accent-contrast);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) :is(.pbi-floating-period-panel, .pbi-filter, .pbi-slicer, .pbi-compact-check) {
+  border-color: #000;
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .dashboard-workspace {
+  background: #000;
+}
+
+body[data-app-theme]:not([data-app-theme="default"])[data-pbi-theme="light"] .dashboard-workspace {
+  background: #000;
+}
+
+/* En el modo personalizado, el usuario controla tambien bordes y fondo exterior. */
+body[data-app-theme="custom"] .pbi-dashboard-shell {
+  border-color: var(--border);
+  box-shadow: 0 0 0 1px var(--border), var(--pbi-shadow);
+}
+
+body[data-app-theme="custom"] :is(.pbi-icon-btn, .pbi-fullscreen-btn, .pbi-floating-period-panel, .pbi-filter, .pbi-slicer, .pbi-compact-check) {
+  border-color: var(--border);
+}
+
+body[data-app-theme="custom"] .dashboard-workspace,
+body[data-app-theme="custom"][data-pbi-theme="light"] .dashboard-workspace {
+  background: var(--bg);
+}
+
+/* Los resúmenes de ingreso, despacho y salidas usan el acento del tema. */
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-kpi--important > .pbi-kpi-label {
+  background: linear-gradient(135deg, var(--pbi-blue), var(--pbi-blue-dark));
+  color: var(--theme-accent-contrast);
+}
+
+body[data-app-theme]:not([data-app-theme="default"]) .pbi-kpi--important {
+  border-color: var(--pbi-blue);
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--pbi-blue) 18%, transparent);
 }

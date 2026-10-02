@@ -18,6 +18,19 @@ Las variables secretas deben configurarse en la interfaz, CLI o API de Netlify; 
 
 El despliegue debe incluir el repositorio completo. Subir solamente la carpeta `dist` no despliega `netlify/functions`.
 
+## Personal de apoyo
+
+Antes de usar el interruptor **Personal de apoyo** en Usuarios, ejecuta en orden
+`sql/051_personal_apoyo.sql` y `sql/052_personal_apoyo_registros.sql` en el editor SQL de Supabase.
+La primera migracion crea el listado independiente; la segunda permite asociar
+personal de apoyo con registros de tiempo e incidencias sin darle acceso al sistema.
+
+## Temas por usuario
+
+Ejecuta `sql/053_preferencias_tema_usuario.sql` en el editor SQL de Supabase.
+Cada usuario conserva su tema y sus colores personalizados al volver a ingresar,
+incluso desde otro dispositivo.
+
 ## Reportes automaticos de notificaciones
 
 1. Ejecuta, en orden, `sql/017_reporte_asistencia_automatico.sql`, `sql/018_multiples_programaciones_reporte_asistencia.sql`, `sql/019_reporte_actividades_por_turno.sql` y `sql/022_multiples_programaciones_reporte_actividad.sql` en el editor SQL de Supabase.

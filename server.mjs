@@ -193,6 +193,51 @@ async function handleLogin(request, response) {
   }
 }
 
+const USER_THEME_KEYS = new Set(["default", "purple", "pink", "gold", "green", "custom"]);
+const USER_THEME_COLOR_KEYS = [
+  "background", "sidebar", "surface", "control", "accent", "secondary",
+  "text", "muted", "border", "buttonText"
+];
+
+async function handleUserThemePreference(request, response) {
+  const session = requireSessionRole(request, response, ["administrador", "operante", "lider de equipo", "otros"]);
+  if (!session) return;
+  try {
+    if (request.method === "GET") {
+      const result = await supabase.from("preferencias_tema_usuario")
+        .select("tema,colores_personalizados").eq("usuario_id", Number(session.id)).maybeSingle();
+      if (result.error) throw result.error;
+      sendJson(response, 200, { preference: result.data || { tema: "default", colores_personalizados: {} } });
+      return;
+    }
+    const body = JSON.parse((await readBody(request)) || "{}");
+    const tema = String(body.tema || "");
+    if (!USER_THEME_KEYS.has(tema)) {
+      sendJson(response, 400, { error: "Selecciona un tema valido." });
+      return;
+    }
+    const colors = body.colores_personalizados;
+    if (!colors || typeof colors !== "object" || Array.isArray(colors)
+      || USER_THEME_COLOR_KEYS.some((key) => !/^#[0-9a-fA-F]{6}$/.test(String(colors[key] || "")))) {
+      sendJson(response, 400, { error: "Los colores personalizados no son validos." });
+      return;
+    }
+    const customColors = Object.fromEntries(USER_THEME_COLOR_KEYS.map((key) => [key, colors[key].toLowerCase()]));
+    const result = await supabase.from("preferencias_tema_usuario").upsert({
+      usuario_id: Number(session.id), tema, colores_personalizados: customColors,
+      updated_at: new Date().toISOString()
+    }, { onConflict: "usuario_id" }).select("tema,colores_personalizados").single();
+    if (result.error) throw result.error;
+    sendJson(response, 200, { preference: result.data });
+  } catch (error) {
+    if (["42P01", "PGRST205"].includes(error?.code) || /preferencias_tema_usuario.*(schema cache|does not exist)/i.test(error?.message || "")) {
+      sendJson(response, 503, { error: "Falta aplicar sql/053_preferencias_tema_usuario.sql en Supabase." });
+      return;
+    }
+    sendJson(response, 500, { error: error.message || "No se pudo guardar el tema." });
+  }
+}
+
 function normalizeRole(role) {
   const value = String(role || "")
     .trim()
@@ -557,6 +602,51 @@ const OPTIONAL_TEXT_USER_FIELDS = [
   "alergia",
   "condicion_salud"
 ];
+
+function supportPersonPayload(body) {
+  const nombres = String(body.nombres || "").trim();
+  const apellidos = String(body.apellidos || "").trim();
+  const dni = String(body.dni || "").trim();
+  if (!nombres || !apellidos) throw new Error("Nombres y apellidos son obligatorios.");
+  if (!/^[0-9]{8}$/.test(dni)) throw new Error("El DNI debe tener 8 digitos.");
+  return { nombres, apellidos, dni };
+}
+
+async function handleSupportPersonnel(request, response, personId = null) {
+  if (!requireAdministrator(request, response)) return;
+  try {
+    if (request.method === "GET") {
+      const result = await supabase.from("personal_apoyo").select("*").order("apellidos", { ascending: true });
+      if (result.error) throw result.error;
+      sendJson(response, 200, { people: result.data || [] });
+      return;
+    }
+    if (personId !== null && (!Number.isInteger(personId) || personId <= 0)) {
+      sendJson(response, 400, { error: "Registro de personal de apoyo invalido." });
+      return;
+    }
+    const body = JSON.parse((await readBody(request)) || "{}");
+    const payload = request.method === "POST" ? supportPersonPayload(body) : {
+      ...("nombres" in body || "apellidos" in body || "dni" in body ? supportPersonPayload(body) : {}),
+      ...(typeof body.activo === "boolean" ? { activo: body.activo } : {})
+    };
+    if (request.method === "PATCH" && !Object.keys(payload).length) throw new Error("No hay cambios para guardar.");
+    const query = request.method === "POST"
+      ? supabase.from("personal_apoyo").insert(payload)
+      : supabase.from("personal_apoyo").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", personId);
+    const result = await query.select("*").maybeSingle();
+    if (result.error) throw result.error;
+    sendJson(response, result.data ? (request.method === "POST" ? 201 : 200) : 404,
+      result.data ? { person: result.data } : { error: "Registro no encontrado." });
+  } catch (error) {
+    if (["42P01", "PGRST205"].includes(error?.code) || /personal_apoyo.*(schema cache|does not exist)/i.test(error?.message || "")) {
+      sendJson(response, 503, { error: "Falta aplicar sql/051_personal_apoyo.sql en Supabase." });
+      return;
+    }
+    sendJson(response, error?.code === "23505" ? 409 : error instanceof SyntaxError || /obligatori|DNI|cambios/i.test(error.message || "") ? 400 : 500,
+      { error: error.message || "No se pudo guardar el personal de apoyo." });
+  }
+}
 
 function userPayloadForDb(body, { creating = false } = {}) {
   let sueldo;
@@ -3978,7 +4068,7 @@ async function handleDeleteActivityRecord(request, response, id) {
 }
 
 const GROUP_RECORD_COLUMNS_CURRENT =
-  "id,encargado_id,trabajador_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,tipo_etiquetado,observacion,hora_inicio,hora_fin,created_at,updated_at,revision";
+  "id,encargado_id,trabajador_id,personal_apoyo_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,tipo_etiquetado,observacion,hora_inicio,hora_fin,created_at,updated_at,revision";
 const GROUP_RECORD_COLUMNS_WITH_EXTRAS =
   "id,encargado_id,trabajador_id,tarea_id,fecha_registro,cantidad,tiempo_minutos,lote,marca_id,tienda_id,observacion,created_at";
 const GROUP_RECORD_COLUMNS_BASE =
@@ -4023,24 +4113,27 @@ async function selectGroupLeaderRecordRows(applyFilters) {
   return result;
 }
 
-function enrichGroupRecords(records, users, tasks, brands = [], stores = []) {
+function enrichGroupRecords(records, users, tasks, brands = [], stores = [], supportPeople = []) {
   const userById = new Map(users.map((user) => [Number(user.id), user]));
   const taskById = new Map(tasks.map((task) => [Number(task.id), task]));
   const brandById = new Map(brands.map((brand) => [Number(brand.id), brand]));
   const storeById = new Map(stores.map((store) => [Number(store.id), store]));
+  const supportById = new Map(supportPeople.map((person) => [Number(person.id), person]));
 
   return records.map((record) => {
     const encargado = userById.get(Number(record.encargado_id));
     const trabajador = userById.get(Number(record.trabajador_id));
+    const support = supportById.get(Number(record.personal_apoyo_id));
     const task = taskById.get(Number(record.tarea_id));
     const brand = record.marca_id ? brandById.get(Number(record.marca_id)) : null;
     const store = record.tienda_id ? storeById.get(Number(record.tienda_id)) : null;
 
     return {
       ...record,
+      trabajador_id: support ? -Number(support.id) : record.trabajador_id,
       encargado_nombre: encargado?.nombre || encargado?.email || "",
       encargado_email: encargado?.email || "",
-      trabajador_nombre: trabajador?.nombre || trabajador?.email || "",
+      trabajador_nombre: support ? `${support.nombres} ${support.apellidos} (Apoyo operativo)` : trabajador?.nombre || trabajador?.email || "",
       trabajador_email: trabajador?.email || "",
       tarea_nombre: record.tarea_nombre || taskTitle(task) || `Tarea ${record.tarea_id}`,
       marca_nombre: brand?.nombre || "",
@@ -4076,13 +4169,14 @@ async function selectAverageReferencesByTask() {
 
 async function loadGroupLeaderData() {
   const tableName = await getTaskTableName();
-  const [usersResult, tasksResult, recordsResult, brandsResult, storesResult, averageReferenceResult] = await Promise.all([
+  const [usersResult, tasksResult, recordsResult, brandsResult, storesResult, averageReferenceResult, supportResult] = await Promise.all([
     supabase.from("usuarios").select("id,nombre,email,rol,activo").order("id", { ascending: true }),
     supabase.from(tableName).select("*").eq("es_operativa", true).order("id", { ascending: true }),
     selectGroupLeaderRecordRows((query) => query.order("created_at", { ascending: false })),
     supabase.from("marcas").select("*").order("nombre", { ascending: true }),
     supabase.from("tiendas").select("id,nombre,activo"),
-    selectAverageReferencesByTask()
+    selectAverageReferencesByTask(),
+    supabase.from("personal_apoyo").select("id,nombres,apellidos,activo").order("apellidos")
   ]);
 
   if (usersResult.error) throw usersResult.error;
@@ -4090,11 +4184,18 @@ async function loadGroupLeaderData() {
   if (recordsResult.error) throw recordsResult.error;
   if (brandsResult.error) throw brandsResult.error;
   if (storesResult.error) throw storesResult.error;
+  if (supportResult.error) throw supportResult.error;
 
   const users = usersResult.data || [];
+  const supportPeople = supportResult.data || [];
+  const supportWorkers = supportPeople.map((person) => ({
+    id: -Number(person.id), nombre: `${person.nombres} ${person.apellidos} (Apoyo operativo)`,
+    rol: "apoyo operativo", activo: isActive(person.activo)
+  }));
   const recordTasks = (tasksResult.data || []).filter((task) => isGroupLeaderTimeTask(task));
   const tasks = recordTasks.filter((task) => isActive(task.activo));
-  const workers = users.filter((user) => isTimedTaskWorkerRole(user.rol) && isActive(user.activo));
+  const workers = [...users.filter((user) => isTimedTaskWorkerRole(user.rol) && isActive(user.activo)),
+    ...supportWorkers.filter((person) => person.activo)];
   const leaders = users.filter((user) => ["lider de equipo"].includes(normalizeRole(user.rol)) && isActive(user.activo));
   const records = enrichGroupRecords(
     (recordsResult.data || []).map((record) => ({
@@ -4104,7 +4205,8 @@ async function loadGroupLeaderData() {
     users,
     tasksResult.data || [],
     brandsResult.data || [],
-    storesResult.data || []
+    storesResult.data || [],
+    supportPeople
   );
   const stores = (storesResult.data || []).filter((store) => isActive(store.activo));
   let activities = [];
@@ -4141,13 +4243,13 @@ async function loadGroupLeaderData() {
     // mismo. `workers`/`leaders` siguen restringidos para los selectores de
     // alta; esto es para poder mostrar y agrupar cualquier registro existente
     // (por ejemplo en el Ranking).
-    allUsers: users.filter((item) => normalizeRole(item.rol) !== "administrador").map((item) => ({
+    allUsers: [...users.filter((item) => normalizeRole(item.rol) !== "administrador").map((item) => ({
       id: item.id,
       nombre: item.nombre,
       email: item.email,
       rol: item.rol,
       activo: isActive(item.activo)
-    })),
+    })), ...supportWorkers],
     records: recordsWithTimes,
     activities,
     operationsMigrationRequired: false,
@@ -4614,7 +4716,7 @@ async function ensureGroupRecordDoesNotOverlap(workerId, timing, excludeRecordId
   let query = supabase
     .from("registros_tareas_jefe_equipo")
     .select("id,hora_inicio,hora_fin")
-    .eq("trabajador_id", workerId)
+    .eq(workerId < 0 ? "personal_apoyo_id" : "trabajador_id", Math.abs(workerId))
     .lt("hora_inicio", timing.hora_fin)
     .gt("hora_fin", timing.hora_inicio)
     .limit(1);
@@ -4631,8 +4733,8 @@ async function ensureGroupRecordDoesNotOverlap(workerId, timing, excludeRecordId
 
 async function validateGroupRecordBase(body, { current = null, validateWorker = true } = {}) {
   const taskId = Number(current?.tarea_id ?? body.tarea_id);
-  const workerId = Number(current?.trabajador_id ?? body.trabajador_id);
-  if (!Number.isInteger(taskId) || taskId <= 0 || !Number.isInteger(workerId) || workerId <= 0) {
+  const workerId = Number(current ? (current.personal_apoyo_id ? -current.personal_apoyo_id : current.trabajador_id) : body.trabajador_id);
+  if (!Number.isInteger(taskId) || taskId <= 0 || !Number.isInteger(workerId) || workerId === 0) {
     throw invalidGroupRecord("Trabajador y tarea son obligatorios.");
   }
   if (current && body.tarea_id !== undefined && Number(body.tarea_id) !== taskId) {
@@ -4645,10 +4747,12 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
   if (!task || !isGroupLeaderTimeTask(task)) throw invalidGroupRecord("Selecciona una tarea por tiempo valida.");
   if (!current && !isActive(task.activo)) throw invalidGroupRecord("La tarea seleccionada no esta activa.");
   if (validateWorker) {
-    const workerResult = await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
+    const workerResult = workerId < 0
+      ? await supabase.from("personal_apoyo").select("id,activo").eq("id", -workerId).maybeSingle()
+      : await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
     if (workerResult.error) throw workerResult.error;
-    if (!workerResult.data || !isTimedTaskWorkerRole(workerResult.data.rol) || !isActive(workerResult.data.activo)) {
-      throw invalidGroupRecord("Selecciona un operante o lider de equipo activo.");
+    if (!workerResult.data || (workerId > 0 && !isTimedTaskWorkerRole(workerResult.data.rol)) || !isActive(workerResult.data.activo)) {
+      throw invalidGroupRecord("Selecciona una persona activa.");
     }
   }
   const metadata = await validateGroupRecordMetadata(body, task, current);
@@ -4660,7 +4764,8 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
       workerId,
       taskId,
       payload: {
-        trabajador_id: workerId,
+        trabajador_id: workerId > 0 ? workerId : null,
+        personal_apoyo_id: workerId < 0 ? -workerId : null,
         tarea_id: taskId,
         cantidad: 0,
         ...groupLeaderRecordStartTiming(body.hora_inicio),
@@ -4679,7 +4784,8 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
     workerId,
     taskId,
     payload: {
-      trabajador_id: workerId,
+      trabajador_id: workerId > 0 ? workerId : null,
+      personal_apoyo_id: workerId < 0 ? -workerId : null,
       tarea_id: taskId,
       cantidad: quantity,
       ...timing,
@@ -4746,7 +4852,7 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
       ...current,
       ...body,
       tarea_id: current.tarea_id,
-      trabajador_id: current.trabajador_id,
+      trabajador_id: current.personal_apoyo_id ? -current.personal_apoyo_id : current.trabajador_id,
       detalle: body.detalle ?? body.observacion ?? current.observacion
     };
     const { payload } = await validateGroupRecordBase(merged, { current, validateWorker: false });
@@ -5342,15 +5448,16 @@ async function handleDeleteIncidentTask(request, response, taskId) {
 }
 
 async function loadIncidentData() {
-  const [usersResult, tasksResult, storesResult, areasResult, incidentsResult] = await Promise.all([
+  const [usersResult, tasksResult, storesResult, areasResult, incidentsResult, supportResult] = await Promise.all([
     supabase.from("usuarios").select("id,nombre,email,rol,activo").order("id", { ascending: true }),
     supabase.from("tarea_error").select("id,nombre,activo").order("id", { ascending: true }),
     supabase.from("tiendas").select("id,nombre,activo").order("id", { ascending: true }),
     supabase.from("areas_departamento").select("id,nombre").order("nombre", { ascending: true }),
     supabase
       .from("registro_errores")
-      .select("id_error,turno,tarea_error_id,tienda_id,numero_guia,numero_lote,observacion,tipo_error,usuario_id,fecha_error,area_id")
-      .order("fecha_error", { ascending: false })
+      .select("id_error,turno,tarea_error_id,tienda_id,numero_guia,numero_lote,observacion,tipo_error,usuario_id,personal_apoyo_id,fecha_error,area_id")
+      .order("fecha_error", { ascending: false }),
+    supabase.from("personal_apoyo").select("id,nombres,apellidos,activo")
   ]);
 
   if (usersResult.error) throw usersResult.error;
@@ -5358,22 +5465,29 @@ async function loadIncidentData() {
   if (storesResult.error) throw storesResult.error;
   if (areasResult.error) throw areasResult.error;
   if (incidentsResult.error) throw incidentsResult.error;
+  if (supportResult.error) throw supportResult.error;
 
   const stores = (storesResult.data || []).filter((store) => isActive(store.activo));
   const storeNames = new Map((storesResult.data || []).map((store) => [Number(store.id), store.nombre]));
   const userNames = new Map((usersResult.data || []).map((user) => [Number(user.id), user.nombre || user.email]));
+  const supportWorkers = (supportResult.data || []).map((person) => ({
+    id: -Number(person.id), nombre: `${person.nombres} ${person.apellidos} (Apoyo operativo)`,
+    activo: isActive(person.activo), rol: "apoyo operativo"
+  }));
+  const supportNames = new Map(supportWorkers.map((person) => [-person.id, person.nombre]));
   const taskNames = new Map((tasksResult.data || []).map((task) => [Number(task.id), taskTitle(task)]));
   const areaNames = new Map((areasResult.data || []).map((area) => [Number(area.id), area.nombre]));
   const incidents = (incidentsResult.data || []).map((incident) => ({
     ...incident,
     tienda_nombre: storeNames.get(Number(incident.tienda_id)) || "",
-    usuario_nombre: userNames.get(Number(incident.usuario_id)) || "",
+    usuario_id: incident.personal_apoyo_id ? -Number(incident.personal_apoyo_id) : incident.usuario_id,
+    usuario_nombre: incident.personal_apoyo_id ? supportNames.get(Number(incident.personal_apoyo_id)) || "" : userNames.get(Number(incident.usuario_id)) || "",
     tarea_nombre: taskNames.get(Number(incident.tarea_error_id)) || "",
     area_nombre: areaNames.get(Number(incident.area_id)) || ""
   }));
 
   return {
-    workers: (usersResult.data || []).filter((user) => isActive(user.activo)),
+    workers: [...(usersResult.data || []).filter((user) => isActive(user.activo)), ...supportWorkers.filter((person) => person.activo)],
     tasks: (tasksResult.data || []).filter((task) => isActive(task.activo)),
     stores,
     areas: areasResult.data || [],
@@ -5434,13 +5548,15 @@ async function handleCreateIncident(request, response) {
       sendJson(response, 400, { error: "Selecciona un area valida." });
       return;
     }
-    if (!isAreaIncident && (!Number.isInteger(workerId) || workerId <= 0)) {
+    if (!isAreaIncident && (!Number.isInteger(workerId) || workerId === 0)) {
       sendJson(response, 400, { error: "Selecciona un trabajador activo." });
       return;
     }
 
     const [workerResult, taskResult, storeResult, areaResult] = await Promise.all([
-      isAreaIncident ? Promise.resolve({ data: null, error: null }) : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
+      isAreaIncident ? Promise.resolve({ data: null, error: null }) : workerId < 0
+        ? supabase.from("personal_apoyo").select("id,nombres,apellidos,activo").eq("id", -workerId).maybeSingle()
+        : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
       supabase.from("tarea_error").select("id,nombre,activo").eq("id", taskId).maybeSingle(),
       supabase.from("tiendas").select("id,nombre,activo").eq("id", storeId).maybeSingle(),
       isAreaIncident ? supabase.from("areas_departamento").select("id,nombre").eq("id", areaId).maybeSingle() : Promise.resolve({ data: null, error: null })
@@ -5475,7 +5591,8 @@ async function handleCreateIncident(request, response) {
       numero_lote: lotNumber || null,
       observacion: body.observacion ? String(body.observacion).trim() : null,
       tipo_error: errorType,
-      usuario_id: isAreaIncident ? null : worker.id,
+      usuario_id: isAreaIncident || workerId < 0 ? null : worker.id,
+      personal_apoyo_id: !isAreaIncident && workerId < 0 ? worker.id : null,
       area_id: isAreaIncident ? area.id : null,
       fecha_error: incidentDate
     };
@@ -5511,7 +5628,8 @@ async function handleUpdateIncident(request, response, incidentId) {
       numero_lote: String(body.numero_lote || "").trim() || null,
       observacion: String(body.observacion || "").trim() || null,
       tipo_error: String(body.tipo_error || "").trim().toUpperCase(),
-      usuario_id: isAreaIncident ? null : Number(body.usuario_id),
+      usuario_id: isAreaIncident || Number(body.usuario_id) < 0 ? null : Number(body.usuario_id),
+      personal_apoyo_id: !isAreaIncident && Number(body.usuario_id) < 0 ? -Number(body.usuario_id) : null,
       area_id: isAreaIncident ? Number(body.area_id) : null,
       fecha_error: String(body.fecha_error || "").trim()
     };
@@ -5531,8 +5649,13 @@ async function handleUpdateIncident(request, response, incidentId) {
     if (isAreaIncident && (!Number.isInteger(payload.area_id) || payload.area_id <= 0)) {
       throw invalidGroupRecord("Selecciona un area valida.");
     }
-    if (!isAreaIncident && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
+    if (!isAreaIncident && !payload.personal_apoyo_id && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
       throw invalidGroupRecord("Selecciona un trabajador activo.");
+    }
+    if (payload.personal_apoyo_id) {
+      const person = await supabase.from("personal_apoyo").select("id,activo").eq("id", payload.personal_apoyo_id).maybeSingle();
+      if (person.error) throw person.error;
+      if (!person.data || !isActive(person.data.activo)) throw invalidGroupRecord("Selecciona personal de apoyo habilitado.");
     }
     const result = await supabase
       .from("registro_errores")
@@ -5711,8 +5834,24 @@ export async function handleRequest(request, response, { serveFiles = true } = {
     return;
   }
 
+  if (/^\/api\/user-theme\/?$/.test(apiPath) && ["GET", "PUT"].includes(request.method)) {
+    await handleUserThemePreference(request, response);
+    return;
+  }
+
   if (/^\/api\/dashboard\/?$/.test(apiPath) && request.method === "GET") {
     await handleReadFootwearDashboard(request, response);
+    return;
+  }
+
+  const supportPersonMatch = apiPath.match(/^\/api\/support-personnel\/(\d+)\/?$/);
+  if (supportPersonMatch && request.method === "PATCH") {
+    await handleSupportPersonnel(request, response, Number(supportPersonMatch[1]));
+    return;
+  }
+
+  if (/^\/api\/support-personnel\/?$/.test(apiPath) && ["GET", "POST"].includes(request.method)) {
+    await handleSupportPersonnel(request, response);
     return;
   }
 

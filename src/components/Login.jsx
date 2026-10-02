@@ -4,6 +4,7 @@ import { verifyUser } from "../lib/repository";
 import { isSupabaseConfigured } from "../lib/supabaseClient";
 import { Alert, Button } from "./ui";
 import loginVideoUrl from "../../genera_un_video_de_fondo_para.mp4";
+import packageJson from "../../package.json";
 
 const MOTIVATIONAL_PHRASES = [
   "Cada paso cuenta",
@@ -18,17 +19,80 @@ const MOTIVATIONAL_PHRASES = [
   "Juntos llegamos más lejos"
 ];
 
+const ADDITIONAL_MOTIVATIONAL_PHRASES = [
+  "Si esperas a estar listo, probablemente esperarás toda la vida.",
+  "Sueña en grande. Comienza en pequeño, pero sobre todo comienza.",
+  "Cuando dejas de soñar, dejas de avanzar.",
+  "El éxito no se construye en un día, pero sí comienza con una decisión.",
+  "La persistencia convierte lo imposible de hoy en lo posible de mañana.",
+  "El fracaso más grande es nunca haberlo intentado.",
+  "Solo quienes se atreven a fracasar tienen la oportunidad de alcanzar grandes éxitos.",
+  "No necesitas ver toda la escalera; solo necesitas dar el primer paso.",
+  "A veces ganar significa simplemente no rendirse.",
+  "Lo que hoy parece pequeño puede convertirse mañana en algo extraordinario.",
+  "No compares tu comienzo con el capítulo veinte de otra persona.",
+  "Las grandes cosas casi siempre comienzan con una idea que alguien se atrevió a tomar en serio.",
+  "No tengas miedo de empezar de cero. Esta vez sabes más que antes.",
+  "El camino difícil suele llevar a lugares donde pocos están dispuestos a llegar.",
+  "La disciplina te llevará lugares donde la motivación no alcanza.",
+  "Hazlo con miedo, pero hazlo.",
+  "El momento perfecto rara vez llega; el momento de empezar es ahora.",
+  "No necesitas suerte cuando tienes preparación, constancia y paciencia.",
+  "Las oportunidades no siempre parecen oportunidades cuando aparecen.",
+  "Si quieres resultados diferentes, tendrás que atreverte a hacer cosas diferentes.",
+  "El talento puede abrir una puerta; la constancia decide cuánto tiempo permaneces dentro.",
+  "No abandones algo que quieres solo porque todavía no sabes cómo conseguirlo.",
+  "Los grandes resultados son la suma de pequeños esfuerzos repetidos durante mucho tiempo.",
+  "Tu futuro se construye con las decisiones que tomas cuando nadie está mirando.",
+  "No todo avance se nota inmediatamente. Algunas raíces crecen en silencio.",
+  "El miedo también puede ser una señal de que estás creciendo.",
+  "No permitas que una mala temporada te haga pensar que tienes una mala vida.",
+  "A veces el camino cambia, pero el sueño puede permanecer.",
+  "No necesitas tener todas las respuestas para comenzar a hacer las preguntas correctas.",
+  "La constancia vence a la inspiración cuando la inspiración decide no aparecer.",
+  "Quien quiere llegar lejos aprende a disfrutar también del camino.",
+  "No construyas tu vida para impresionar a otros; constrúyela para estar orgulloso de ti.",
+  "Las personas que hoy admiras también tuvieron un día en el que no sabían por dónde empezar.",
+  "El éxito no siempre hace ruido. A veces se parece a levantarte y continuar.",
+  "No confundas ir lento con estar detenido.",
+  "Cada intento te acerca un poco más a descubrir qué funciona.",
+  "Si el plan no funciona, cambia el plan, no necesariamente el objetivo.",
+  "La paciencia también es una forma de valentía.",
+  "No hay progreso sin incomodidad, ni aprendizaje sin errores.",
+  "Tu única competencia real es la persona que eras ayer.",
+  "El tiempo va a pasar de todos modos. Haz que también trabaje a tu favor.",
+  "Un día agradecerás haber insistido cuando tenías razones para abandonar.",
+  "No necesitas demostrarle a nadie que puedes. Solo necesitas demostrarte a ti mismo que lo intentaste.",
+  "Las decisiones pequeñas de hoy pueden cambiar por completo la historia de mañana.",
+  "No dejes que la posibilidad de equivocarte te robe la posibilidad de acertar.",
+  "La vida cambia cuando dejas de esperar permiso para perseguir lo que quieres.",
+  "Rodéate de personas que te recuerden quién puedes llegar a ser.",
+  "Los amigos y las buenas maneras pueden abrir puertas que el dinero jamás podrá comprar.",
+  "No todo lo que pierdes es una pérdida; algunas cosas hacen espacio para algo mejor.",
+  "A veces cerrar una puerta es exactamente lo que necesitas para empezar a construir otra.",
+  "El éxito tiene muchas definiciones. Asegúrate de escribir la tuya.",
+  "No trabajes solamente por llegar a un lugar; conviértete en alguien capaz de permanecer allí.",
+  "La suerte suele encontrar trabajando a quienes estaban preparados cuando llegó la oportunidad.",
+  "Si vas a pensar en grande, piensa también en grande sobre lo que eres capaz de aprender.",
+  "No dejes que un “todavía no” se convierta en un “nunca”.",
+  "El comienzo puede ser imperfecto y aun así ser el comienzo correcto.",
+  "Los sueños no tienen fecha de vencimiento; pero necesitan acciones para convertirse en realidad.",
+  "Cuando no puedas avanzar rápido, avanza despacio. Pero sigue avanzando.",
+  "Algún día mirarás hacia atrás y entenderás por qué necesitabas ser paciente.",
+  "No sabes hasta dónde puedes llegar si nunca decides dar el primer paso."
+];
+
 function createMotivationalFlow() {
-  const shuffled = [...MOTIVATIONAL_PHRASES];
+  const shuffled = [...MOTIVATIONAL_PHRASES, ...ADDITIONAL_MOTIVATIONAL_PHRASES];
   for (let index = shuffled.length - 1; index > 0; index -= 1) {
     const randomIndex = Math.floor(Math.random() * (index + 1));
     [shuffled[index], shuffled[randomIndex]] = [shuffled[randomIndex], shuffled[index]];
   }
 
   const lanes = [7, 16, 26, 37, 48, 59, 69, 78, 87, 94];
-  return shuffled.map((phrase, index) => ({
+  return shuffled.slice(0, 10).map((phrase, index) => ({
     phrase,
-    top: lanes[index] + (Math.random() * 3 - 1.5),
+    top: lanes[index % lanes.length] + (Math.random() * 3 - 1.5),
     duration: 17 + Math.random() * 12,
     delay: -(Math.random() * 28)
   }));
@@ -133,6 +197,7 @@ export default function Login({ onLogin }) {
           </span>
         ))}
       </div>
+      <span className="login-version">V {packageJson.version}</span>
       <section className="login-card" aria-label="Inicio de sesion">
         <div className="login-card-topline">
           <div className="brand-mark">F</div>
