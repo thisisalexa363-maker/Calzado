@@ -4755,12 +4755,11 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
   const task = await taskWithScoringRules(taskId);
   if (!task || !isGroupLeaderTimeTask(task)) throw invalidGroupRecord("Selecciona una tarea por tiempo valida.");
   if (!current && !isActive(task.activo)) throw invalidGroupRecord("La tarea seleccionada no esta activa.");
-  const workerResult = await supabase.from("usuarios").select("id,rol,tipo,activo").eq("id", workerId).maybeSingle();
+  const workerResult = await supabase.from("usuarios").select("id,rol,activo").eq("id", workerId).maybeSingle();
   if (workerResult.error) throw workerResult.error;
   if (!workerResult.data || (validateWorker && (!isTimedTaskWorkerRole(workerResult.data.rol) || !isActive(workerResult.data.activo)))) {
     throw invalidGroupRecord("Selecciona una persona activa.");
   }
-  const isSupport = workerResult.data.tipo === "Apoyo";
   const metadata = await validateGroupRecordMetadata(body, task, current);
   // Sin hora de fin el registro queda pendiente: se guarda el inicio y se
   // cierra mas adelante desde el historial, con la cantidad real.
@@ -4773,7 +4772,6 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
         trabajador_id: workerId,
         tarea_id: taskId,
         cantidad: 0,
-        ...(isSupport ? { puntaje: 0 } : {}),
         ...groupLeaderRecordStartTiming(body.hora_inicio),
         ...metadata
       }
@@ -4793,7 +4791,6 @@ async function validateGroupRecordBase(body, { current = null, validateWorker = 
       trabajador_id: workerId,
       tarea_id: taskId,
       cantidad: quantity,
-      ...(isSupport ? { puntaje: 0 } : {}),
       ...timing,
       ...metadata
     }
@@ -4872,8 +4869,7 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
       marca_id: payload.marca_id,
       tienda_id: payload.tienda_id,
       tipo_etiquetado: payload.tipo_etiquetado,
-      observacion: payload.observacion,
-      ...(payload.puntaje === 0 ? { puntaje: 0 } : {})
+      observacion: payload.observacion
     };
     const updateResult = await supabase
       .from("registros_tareas_jefe_equipo")
