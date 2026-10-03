@@ -164,8 +164,9 @@ async function handleLogin(request, response) {
 
     const result = await supabase
       .from("usuarios")
-      .select("id,nombre,email,rol,activo,created_at,fecha_cumpleanos,sueldo")
+      .select("id,nombre,email,rol,tipo,activo,created_at,fecha_cumpleanos,sueldo")
       .eq("email", email)
+      .neq("tipo", "Apoyo")
       .eq("password_hash", password)
       .limit(1);
 
@@ -471,7 +472,7 @@ async function selectUsers() {
     movementByUser.set(userId, summary);
   }
 
-  return (usersResult.data || []).map((user) => {
+  return (usersResult.data || []).filter((user) => user.tipo !== "Apoyo").map((user) => {
     const summary = movementByUser.get(Number(user.id)) || {};
     const ingreso = summary.ingreso?.fecha_movimiento || null;
     const salida = summary.salida?.fecha_movimiento || null;
@@ -617,6 +618,25 @@ function supportPersonPayload(body) {
   return { nombres, apellidos, nombre: `${nombres} ${apellidos}`, dni };
 }
 
+export async function deleteSupportPersonRecord(database, personId, confirmationDni) {
+  const person = await database.from("usuarios").select("id,dni").eq("id", personId).eq("tipo", "Apoyo").maybeSingle();
+  if (person.error) throw person.error;
+  if (!person.data) throw Object.assign(new Error("Personal de apoyo no encontrado."), { statusCode: 404 });
+  if (!confirmationDni || String(confirmationDni).trim() !== String(person.data.dni)) {
+    throw Object.assign(new Error("Escribe el DNI del personal de apoyo para confirmar la eliminacion."), { statusCode: 400 });
+  }
+  const result = await database.from("usuarios").delete().eq("id", personId).eq("tipo", "Apoyo").select("id").maybeSingle();
+  if (result.error?.code === "23503") {
+    const archived = await database.from("usuarios").update({ activo: false }).eq("id", personId).eq("tipo", "Apoyo").select("id").maybeSingle();
+    if (archived.error) throw archived.error;
+    if (!archived.data) throw Object.assign(new Error("Personal de apoyo no encontrado."), { statusCode: 404 });
+    return { deleted: false, archived: true };
+  }
+  if (result.error) throw result.error;
+  if (!result.data) throw Object.assign(new Error("Personal de apoyo no encontrado."), { statusCode: 404 });
+  return { deleted: true, archived: false };
+}
+
 async function handleSupportPersonnel(request, response, personId = null) {
   if (!requireAdministrator(request, response)) return;
   try {
@@ -633,6 +653,11 @@ async function handleSupportPersonnel(request, response, personId = null) {
       return;
     }
     const body = JSON.parse((await readBody(request)) || "{}");
+    if (request.method === "DELETE") {
+      const result = await deleteSupportPersonRecord(supabase, personId, body.confirmationDni);
+      sendJson(response, 200, result);
+      return;
+    }
     const payload = request.method === "POST" ? {
       ...supportPersonPayload(body), tipo: "Apoyo", rol: "operante", activo: true,
       email: null, password_hash: null
@@ -658,7 +683,7 @@ async function handleSupportPersonnel(request, response, personId = null) {
       sendJson(response, 503, { error: "Falta aplicar sql/054_apoyo_en_usuarios.sql en Supabase." });
       return;
     }
-    sendJson(response, error?.code === "23505" ? 409 : error instanceof SyntaxError || /obligatori|DNI|cambios/i.test(error.message || "") ? 400 : 500,
+    sendJson(response, error.statusCode || (error?.code === "23505" ? 409 : error instanceof SyntaxError || /obligatori|DNI|cambios/i.test(error.message || "") ? 400 : 500),
       { error: error?.code === "23505" ? "El DNI ya esta registrado para otra persona de apoyo." : error.message || "No se pudo guardar el personal de apoyo." });
   }
 }
@@ -761,6 +786,7 @@ async function handleUpdateUser(request, response, userId) {
       sendJson(response, 400, { error: "La fecha de creacion no se puede modificar." });
       return;
     }
+    if (await rejectSupportRecord(userId, response)) return;
     const employmentDates = validateEmploymentDates(body);
     const payload = userPayloadForDb(body);
     if (employmentDates?.ingreso) payload.activo = !employmentDates.salida;
@@ -953,6 +979,7 @@ async function handleUpdateUserTraining(request, response, userId, courseId) {
       return;
     }
 
+    if (await rejectSupportRecord(userId, response)) return;
     const [userResult, courseResult] = await Promise.all([
       supabase.from("usuarios").select("id,rol").eq("id", userId).maybeSingle(),
       supabase.from("capacitaciones").select("id,id_curso,orden").eq("id_curso", courseId).eq("activo", true).maybeSingle()
@@ -1278,7 +1305,7 @@ async function handleReadTrainingStatus(request, response, courseId) {
 
     const [courseResult, usersResult, progressResult] = await Promise.all([
       supabase.from("capacitaciones").select("id,id_curso,orden,nombre_curso,nro_horas,inversion_curso").eq("id_curso", normalizedCourseId).maybeSingle(),
-      supabase.from("usuarios").select("id,nombre,email,rol,activo").order("nombre", { ascending: true }),
+      supabase.from("usuarios").select("id,nombre,email,rol,tipo,activo").order("nombre", { ascending: true }),
       supabase
         .from("usuario_capacitaciones")
         .select("id,usuario_id,capacitacion_id,curso_id,estado,completado,completado_en,completado_por,created_at,updated_at,duracion,encargado")
@@ -1293,7 +1320,7 @@ async function handleReadTrainingStatus(request, response, courseId) {
 
     const progressByUser = new Map((progressResult.data || []).map((item) => [Number(item.usuario_id), item]));
     const users = (usersResult.data || [])
-      .filter((user) => normalizeRole(user.rol) !== "administrador")
+      .filter((user) => user.tipo !== "Apoyo" && normalizeRole(user.rol) !== "administrador")
       .map((user) => {
       const progress = progressByUser.get(Number(user.id));
       const estado = trainingStateFromProgress(progress);
@@ -1370,11 +1397,11 @@ async function handleBulkUpdateTraining(request, response) {
       return;
     }
 
-    const usersResult = await supabase.from("usuarios").select("id,rol").in("id", userIds);
+    const usersResult = await supabase.from("usuarios").select("id,rol,tipo").in("id", userIds);
     if (usersResult.error) throw usersResult.error;
     const validUserIds = new Set(
       (usersResult.data || [])
-        .filter((item) => normalizeRole(item.rol) !== "administrador")
+        .filter((item) => item.tipo !== "Apoyo" && normalizeRole(item.rol) !== "administrador")
         .map((item) => Number(item.id))
     );
     const skipped = userIds.filter((id) => !validUserIds.has(id));
@@ -1902,6 +1929,14 @@ async function selectActivityLogs(workerId = null) {
   }
 
   throw lastError || new Error("No se pudieron leer los registros de actividades.");
+}
+
+export async function rejectSupportRecord(userId, response, database = supabase) {
+  const result = await database.from("usuarios").select("id,tipo").eq("id", userId).maybeSingle();
+  if (result.error) throw result.error;
+  if (result.data?.tipo !== "Apoyo") return false;
+  sendJson(response, 403, { error: "El personal de apoyo solo puede tener registros de tareas con tiempo del jefe de equipo." });
+  return true;
 }
 
 async function handleReadUsers(_request, response) {
@@ -2838,12 +2873,12 @@ async function handleReadAmonestaciones(request, response) {
     if (!requireAdministrator(request, response)) return;
     const [warningsResult, usersResult] = await Promise.all([
       supabase.from("amonestaciones").select("*").order("created_at", { ascending: false }),
-      supabase.from("usuarios").select("id,rol")
+      supabase.from("usuarios").select("id,rol,tipo")
     ]);
     if (warningsResult.error || usersResult.error) throw warningsResult.error || usersResult.error;
     const allowedUserIds = new Set(
       (usersResult.data || [])
-        .filter((user) => normalizeRole(user.rol) !== "administrador")
+        .filter((user) => user.tipo !== "Apoyo" && normalizeRole(user.rol) !== "administrador")
         .map((user) => Number(user.id))
     );
     sendJson(response, 200, {
@@ -2885,6 +2920,7 @@ async function handleCreateAmonestacion(request, response) {
       return;
     }
 
+    if (await rejectSupportRecord(usuarioId, response)) return;
     const userResult = await supabase.from("usuarios").select("id,activo,rol").eq("id", usuarioId).maybeSingle();
     if (userResult.error) throw userResult.error;
     if (!userResult.data || !isActive(userResult.data.activo)) {
@@ -2964,7 +3000,8 @@ async function handleReadAttendances(request, response) {
     });
     // La sigla se saca del catalogo dato_asistencia en vez de repetirla en
     // cada fila o en el codigo del cliente.
-    const attendances = rows.map((row) => ({
+    const regularIds = new Set((await selectUsers()).map((user) => Number(user.id)));
+    const attendances = rows.filter((row) => regularIds.has(Number(row.usuario_id))).map((row) => ({
       ...row,
       sigla: catalog.get(row.estado)?.sigla || "",
       estado_nombre: catalog.get(row.estado)?.nombre || row.estado
@@ -3045,6 +3082,7 @@ async function handleMarkAttendance(request, response) {
       sendJson(response, 400, { error: "Usuario y fecha de asistencia son obligatorios." });
       return;
     }
+    if (await rejectSupportRecord(userId, response)) return;
     let estado = String(body.estado || "").trim().toUpperCase();
     if (!estado && body.presente !== undefined) {
       if (body.presente === false) {
@@ -3705,7 +3743,7 @@ async function handleReadOperationalRecords(request, response) {
     let catalogs;
     if (includeCatalogs) {
       const [allUsersResult, allTasks, lotesResult, catalogRecordRows] = await Promise.all([
-        supabase.from("usuarios").select("id,nombre,email,rol,activo").order("nombre", { ascending: true }),
+        supabase.from("usuarios").select("id,nombre,email,rol,tipo,activo").order("nombre", { ascending: true }),
         selectTasks(),
         supabase.from("lotes").select("codigo_lote,es_general").order("codigo_lote", { ascending: true }),
         selectAllDashboardRows(table)
@@ -3715,7 +3753,7 @@ async function handleReadOperationalRecords(request, response) {
       const recordedWorkerIds = new Set(catalogRecordRows.map((row) => Number(row[workerColumn])).filter(Boolean));
       const recordedManagerIds = new Set(catalogRecordRows.map((row) => Number(row.encargado_id)).filter(Boolean));
       catalogs = {
-        users: (allUsersResult.data || []).filter((item) => recordedWorkerIds.has(Number(item.id))),
+        users: (allUsersResult.data || []).filter((item) => recordedWorkerIds.has(Number(item.id)) && (source === "time" || item.tipo !== "Apoyo")),
         managers: (allUsersResult.data || []).filter((item) => recordedManagerIds.has(Number(item.id))),
         tasks: allTasks,
         lotes: lotesResult.data || []
@@ -3742,6 +3780,7 @@ async function handleCreateActivityLog(request, response) {
   try {
     const session = requireSessionRole(request, response, ["operante", "lider de equipo", "otros"]);
     if (!session) return;
+    if (await rejectSupportRecord(session.id, response)) return;
     const body = JSON.parse((await readBody(request)) || "{}");
     const submittedTime = body.tiempo_minutos ?? body.dato_extra;
     if (
@@ -5482,7 +5521,7 @@ async function loadIncidentData() {
   }));
 
   return {
-    workers: (usersResult.data || []).filter((user) => isActive(user.activo))
+    workers: (usersResult.data || []).filter((user) => user.tipo !== "Apoyo" && isActive(user.activo))
       .map((user) => ({ ...user, nombre: personDisplayName(user) })),
     tasks: (tasksResult.data || []).filter((task) => isActive(task.activo)),
     stores,
@@ -5549,6 +5588,7 @@ async function handleCreateIncident(request, response) {
       return;
     }
 
+    if (!isAreaIncident && await rejectSupportRecord(workerId, response)) return;
     const [workerResult, taskResult, storeResult, areaResult] = await Promise.all([
       isAreaIncident ? Promise.resolve({ data: null, error: null }) : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
       supabase.from("tarea_error").select("id,nombre,activo").eq("id", taskId).maybeSingle(),
@@ -5644,6 +5684,7 @@ async function handleUpdateIncident(request, response, incidentId) {
     if (!isAreaIncident && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
       throw invalidGroupRecord("Selecciona un trabajador activo.");
     }
+    if (!isAreaIncident && await rejectSupportRecord(payload.usuario_id, response)) return;
     if (!isAreaIncident) {
       const workerResult = await supabase.from("usuarios")
         .select("id,activo").eq("id", payload.usuario_id).maybeSingle();
@@ -5840,7 +5881,7 @@ export async function handleRequest(request, response, { serveFiles = true } = {
   }
 
   const supportPersonMatch = apiPath.match(/^\/api\/support-personnel\/(\d+)\/?$/);
-  if (supportPersonMatch && request.method === "PATCH") {
+  if (supportPersonMatch && ["PATCH", "DELETE"].includes(request.method)) {
     await handleSupportPersonnel(request, response, Number(supportPersonMatch[1]));
     return;
   }

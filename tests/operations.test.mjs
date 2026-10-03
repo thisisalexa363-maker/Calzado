@@ -11,7 +11,7 @@ import {
 } from "../src/lib/operations.js";
 import { limaDateTimeToISO } from "../src/lib/dates.js";
 import { validateQuantityRanges } from "../src/lib/scoring.js";
-import { groupLeaderRecordTiming } from "../server.mjs";
+import { groupLeaderRecordTiming, rejectSupportRecord } from "../server.mjs";
 
 test("retiro anticipado conserva puntualidad y exige motivo", () => {
   assert.equal(validateAttendanceEdit({ estado: "ASISTENCIA", retiro_anticipado: true, tipo_retiro: "personal", motivo_retiro: "" }), "Ingresa el motivo del retiro anticipado.");
@@ -124,4 +124,23 @@ test("el historial rechaza fin anterior, futuro y duraciones absurdas", () => {
     () => groupLeaderRecordTiming("2026-08-11T08:00:00-05:00", "2026-08-13T08:01:00-05:00", { now }),
     /24 horas/i
   );
+});
+
+
+test("bloquea registros fuera de tareas por tiempo para apoyo y permite usuarios normales", async () => {
+  for (const tipo of ["Apoyo", "Normal", null]) {
+    const database = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ data: { id: 7, tipo } }) }) }) }) };
+    const response = { writeHead(status) { this.status = status; }, end(body) { this.body = JSON.parse(body); } };
+    assert.equal(await rejectSupportRecord(7, response, database), tipo === "Apoyo");
+    if (tipo === "Apoyo") {
+      assert.equal(response.status, 403);
+      assert.match(response.body.error, /solo.*tareas con tiempo/);
+    } else assert.equal(response.status, undefined);
+  }
+});
+
+test("no permite continuar cuando falla la consulta del tipo de personal", async () => {
+  const error = new Error("consulta fallida");
+  const database = { from: () => ({ select: () => ({ eq: () => ({ maybeSingle: async () => ({ error }) }) }) }) };
+  await assert.rejects(rejectSupportRecord(7, {}, database), /consulta fallida/);
 });

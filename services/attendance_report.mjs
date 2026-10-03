@@ -243,11 +243,11 @@ export async function readAttendanceReportHistory(db, limit = 12) {
 export async function readActiveAttendanceWorkers(db) {
   const result = await db
     .from("usuarios")
-    .select("id,nombre,email,rol,activo")
+    .select("id,nombre,email,rol,tipo,activo")
     .eq("activo", true)
     .order("nombre", { ascending: true });
   const workers = databaseError(result, "No se pudieron consultar los trabajadores activos.") || [];
-  return workers.filter((worker) => worker.activo === true && WORKER_ROLES.has(normalizeWorkerRole(worker.rol)));
+  return workers.filter((worker) => worker.tipo !== "Apoyo" && worker.activo === true && WORKER_ROLES.has(normalizeWorkerRole(worker.rol)));
 }
 
 const ATTENDED_STATES = new Set(["ASISTENCIA", "TARDANZA", "MEDIO_TURNO", "APOYO"]);

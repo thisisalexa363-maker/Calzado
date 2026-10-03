@@ -228,12 +228,12 @@ export function friendlyError(error) {
 
 export async function selectUsers() {
   const apiResult = await requestLocalApi("/api/users");
-  if (apiResult?.users) return apiResult.users;
+  if (apiResult?.users) return apiResult.users.filter((user) => user.tipo !== "Apoyo");
 
-  const cols = "id,nombre,email,rol,activo,created_at,fecha_cumpleanos,sueldo,condicion_salud";
+  const cols = "id,nombre,email,rol,tipo,activo,created_at,fecha_cumpleanos,sueldo,condicion_salud";
   const precise = await db().from("usuarios").select(cols).order("id", { ascending: true });
-  if (!precise.error) return precise.data || [];
-  return ensureOk(await db().from("usuarios").select("*").order("id", { ascending: true })) || [];
+  if (!precise.error) return (precise.data || []).filter((user) => user.tipo !== "Apoyo");
+  return (ensureOk(await db().from("usuarios").select("*").order("id", { ascending: true })) || []).filter((user) => user.tipo !== "Apoyo");
 }
 
 export async function listSupportPersonnel() {
@@ -246,6 +246,12 @@ export async function createSupportPerson(payload) {
     method: "POST", body: JSON.stringify(payload)
   }, { requiredBackend: true });
   return result.person;
+}
+
+export async function deleteSupportPerson(id, confirmationDni) {
+  return requestLocalApi(`/api/support-personnel/${encodeURIComponent(id)}`, {
+    method: "DELETE", body: JSON.stringify({ confirmationDni })
+  }, { requiredBackend: true });
 }
 
 export async function updateSupportPerson(id, payload) {
@@ -876,6 +882,13 @@ export async function listAmonestaciones() {
   return result.data || [];
 }
 
+async function assertRegularRecordPerson(userId) {
+  const result = await db().from("usuarios").select("id,tipo").eq("id", userId).maybeSingle();
+  if (result.error) throw result.error;
+  if (!result.data) throw new Error("Usuario no encontrado.");
+  if (result.data.tipo === "Apoyo") throw new Error("El personal de apoyo solo puede tener registros de tareas con tiempo del jefe de equipo.");
+}
+
 export async function createAmonestacion(payload) {
   const apiResult = await requestLocalApi("/api/amonestaciones", {
     method: "POST",
@@ -883,6 +896,7 @@ export async function createAmonestacion(payload) {
   });
   if (apiResult?.amonestacion) return apiResult.amonestacion;
 
+  await assertRegularRecordPerson(payload.usuario_id);
   const result = await db().from("amonestaciones").insert(payload).select("*").single();
   if (result.error) {
     if (isMissingTableError(result.error, "amonestaciones")) {
@@ -997,6 +1011,7 @@ export async function markAttendance(usuarioId, fecha, presente, horaLimite, cha
     throw new Error("El backend debe estar activo para editar una asistencia o registrar un retiro anticipado.");
   }
 
+  await assertRegularRecordPerson(usuarioId);
   const tableName = await getAttendanceTableName();
   const estado = changes.estado ? String(changes.estado).toUpperCase() : !isPresent
     ? "FALTA"
@@ -1151,6 +1166,7 @@ export async function createWorkerActivityLog(payload) {
     throw new Error("El backend local debe estar activo para guardar distribuciones por marcas o guías.");
   }
 
+  await assertRegularRecordPerson(payload.usuario_id);
   const cleanPayload = { ...payload };
   delete cleanPayload.created_at;
 
@@ -1298,6 +1314,7 @@ export async function listIncidentes() {
 }
 
 export async function createIncidente(payload) {
+  if (payload.usuario_id) await assertRegularRecordPerson(payload.usuario_id);
   ensureOk(await db().from("registro_errores").insert(payload));
 }
 

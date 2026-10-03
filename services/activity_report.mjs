@@ -149,11 +149,11 @@ export async function readActivityReportHistory(db, limit = 30) {
 export async function readActiveActivityWorkers(db) {
   const result = await db
     .from("usuarios")
-    .select("id,nombre,email,rol,activo")
+    .select("id,nombre,email,rol,tipo,activo")
     .eq("activo", true)
     .order("nombre", { ascending: true });
   const workers = databaseError(result, "No se pudieron consultar los operantes activos.") || [];
-  return workers.filter((worker) => worker.activo === true && String(worker.rol || "").trim().toLowerCase() === "operante");
+  return workers.filter((worker) => worker.tipo !== "Apoyo" && worker.activo === true && String(worker.rol || "").trim().toLowerCase() === "operante");
 }
 
 export function activityShiftDue(config, shift, now = new Date()) {

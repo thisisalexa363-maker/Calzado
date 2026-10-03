@@ -13,6 +13,7 @@ import {
   createTrainingCourse,
   createUser,
   createSupportPerson,
+  deleteSupportPerson,
   clearOperationalRecordsCache,
   deleteActivityReportSettings,
   deleteAmonestacion,
@@ -519,6 +520,10 @@ function emptySupportPerson() {
 
 function SupportPersonnelSection() {
   const { data: people = [], loading, error, reload } = useAsyncData(listSupportPersonnel, [], []);
+  const [deletePerson, setDeletePerson] = useState(null);
+  const [confirmationDni, setConfirmationDni] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deleting, setDeleting] = useState(false);
   const [editId, setEditId] = useState("");
   const [form, setForm] = useState(emptySupportPerson);
   const [saving, setSaving] = useState(false);
@@ -568,14 +573,33 @@ function SupportPersonnelSection() {
     }
   }
 
+  async function confirmDelete() {
+    if (!deletePerson || confirmationDni.trim() !== deletePerson.dni || deleting) return;
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      const result = await deleteSupportPerson(deletePerson.id, confirmationDni.trim());
+      if (String(deletePerson.id) === editId) selectPerson("");
+      setDeletePerson(null);
+      setConfirmationDni("");
+      await reload();
+      setStatus({ type: "success", message: result.archived ? "Personal de apoyo deshabilitado. Se conserva su historial de tareas." : "Personal de apoyo eliminado." });
+    } catch (err) {
+      setDeleteError(friendlyError(err));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="stack">
       <Alert>Para agregar personal de apoyo, usa el interruptor en Crear. Estas personas no tienen acceso al sistema.</Alert>
       {loading ? <LoadingBlock /> : <div className="support-personnel-list">
         {people.length ? people.map((person) => <div className="support-personnel-row" key={person.id}>
           <span><strong>{person.nombres} {person.apellidos}</strong> (Apoyo operativo)<small>DNI {person.dni} · {person.activo ? "Habilitado" : "Deshabilitado"}</small></span>
-          <Button variant="secondary" onClick={() => selectPerson(String(person.id))}>Editar</Button>
-          <Button variant="secondary" disabled={saving} onClick={() => togglePerson(person)}>{person.activo ? "Deshabilitar" : "Habilitar"}</Button>
+          <Button variant="secondary" disabled={saving || deleting} onClick={() => selectPerson(String(person.id))}>Editar</Button>
+          <Button variant="secondary" disabled={saving || deleting} onClick={() => togglePerson(person)}>{person.activo ? "Deshabilitar" : "Habilitar"}</Button>
+          <Button variant="danger" icon={Trash2} disabled={saving || deleting} onClick={() => { setDeletePerson(person); setConfirmationDni(""); setDeleteError(""); }}>Eliminar</Button>
         </div>) : <Alert>No hay personal de apoyo registrado.</Alert>}
       </div>}
       {error ? <Alert type="error">{friendlyError(error)}</Alert> : null}
@@ -586,6 +610,23 @@ function SupportPersonnelSection() {
         <div className="form-span"><Button type="submit" icon={Save} loading={saving}>Guardar cambios</Button> <Button variant="secondary" onClick={() => selectPerson("")}>Cancelar</Button></div>
       </form> : null}
       <StatusAlert status={status} />
+      {deletePerson ? <div className="delete-confirm-overlay" role="presentation" onKeyDown={(event) => { if (event.key === "Escape" && !deleting) setDeletePerson(null); }}>
+        <section className="delete-confirm-dialog" role="alertdialog" aria-modal="true" aria-labelledby="delete-support-title" aria-describedby="delete-support-description">
+          <span className="delete-confirm-icon" aria-hidden="true"><AlertTriangle /></span>
+          <div className="delete-confirm-copy">
+            <p className="eyebrow">Confirmar eliminacion</p>
+            <h2 id="delete-support-title">?Eliminar este personal de apoyo?</h2>
+            <p id="delete-support-description">Vas a eliminar a <strong>{deletePerson.nombres} {deletePerson.apellidos}</strong>, DNI <strong>{deletePerson.dni}</strong>. La eliminacion es permanente. Si tiene registros relacionados, se deshabilitara para conservar el historial y no podras seleccionarlo para nuevas tareas.</p>
+            <Alert type="error">Advertencia adicional: verifica que sea la persona correcta antes de confirmar.</Alert>
+            <TextInput label="Escribe su DNI para confirmar" autoFocus maxLength={8} value={confirmationDni} onChange={setConfirmationDni} disabled={deleting} />
+            {deleteError ? <Alert type="error">{deleteError}</Alert> : null}
+          </div>
+          <div className="delete-confirm-actions">
+            <Button variant="secondary" disabled={deleting} onClick={() => setDeletePerson(null)}>Cancelar</Button>
+            <Button variant="danger" icon={Trash2} loading={deleting} disabled={confirmationDni.trim() !== deletePerson.dni || deleting} onClick={confirmDelete}>Si, eliminar</Button>
+          </div>
+        </section>
+      </div> : null}
     </div>
   );
 }

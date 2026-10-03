@@ -187,7 +187,8 @@ test("clasifica operantes activos con y sin registro en cada turno", async () =>
       { id: 1, nombre: "Ana", email: "ana@example.com", rol: "operante", activo: true },
       { id: 2, nombre: "Luis", email: "luis@example.com", rol: "operante", activo: true },
       { id: 3, nombre: "Inactivo", email: "x@example.com", rol: "operante", activo: false },
-      { id: 4, nombre: "Jefe", email: "j@example.com", rol: "lider de equipo", activo: true }
+      { id: 4, nombre: "Jefe", email: "j@example.com", rol: "lider de equipo", activo: true },
+      { id: 5, nombre: "Apoyo", rol: "operante", tipo: "Apoyo", activo: true }
     ],
     registros_tareas: [
       { id: 10, usuario_id: 1, fecha_registro: "2026-08-04", created_at: "2026-08-04T15:00:00Z" },

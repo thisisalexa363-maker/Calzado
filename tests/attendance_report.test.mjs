@@ -446,7 +446,8 @@ test("solo incluye asistentes activos con rol trabajador y respeta la seleccion"
       { id: 9, nombre: "Luis", email: "luis@example.com", rol: "Líder de Equipo", activo: true },
       { id: 10, nombre: "Inactivo", email: "inactivo@example.com", rol: "trabajador", activo: false },
       { id: 11, nombre: "Admin", email: "admin@example.com", rol: "administrador", activo: true },
-      { id: 12, nombre: "Rosa", email: "rosa@example.com", rol: "TRABAJADOR", activo: true }
+      { id: 12, nombre: "Rosa", email: "rosa@example.com", rol: "TRABAJADOR", activo: true },
+      { id: 13, nombre: "Apoyo", rol: "operante", tipo: "Apoyo", activo: true }
     ],
     asistencias: [8, 9, 10, 11, 12].map((usuarioId, index) => ({
       id: index + 1,
@@ -478,7 +479,8 @@ test("reporta como ausentes a los trabajadores activos sin asistencia puntual o 
     usuarios: [
       { id: 8, nombre: "Ana", email: "ana@example.com", rol: "operante", activo: true },
       { id: 9, nombre: "Luis", email: "luis@example.com", rol: "Líder de Equipo", activo: true },
-      { id: 12, nombre: "Rosa", email: "rosa@example.com", rol: "TRABAJADOR", activo: true }
+      { id: 12, nombre: "Rosa", email: "rosa@example.com", rol: "TRABAJADOR", activo: true },
+      { id: 13, nombre: "Apoyo", rol: "operante", tipo: "Apoyo", activo: true }
     ],
     asistencias: [
       { id: 1, usuario_id: 8, fecha: "2026-08-04", estado: "ASISTENCIA", created_at: "2026-08-04T14:30:00Z" },
