@@ -1,3 +1,5 @@
+import { assertGroupRecordEditable } from "./src/lib/groupRecordPermissions.js";
+import { EXIT_REASONS, normalizeExitReason } from "./src/lib/exitReasons.js";
 import fs from "node:fs";
 import http from "node:http";
 import path from "node:path";
@@ -492,13 +494,13 @@ function validateEmploymentDates(body) {
   if (!hasFields) return null;
   const ingreso = String(body.fecha_ingreso || "").trim();
   const salida = String(body.fecha_salida || "").trim();
-  const motivo = String(body.motivo_salida || "").trim();
+  const motivo = normalizeExitReason(body.motivo_salida);
   if (salida && !ingreso) throw new Error("La fecha de ingreso es obligatoria si registras una salida.");
   if (ingreso && !/^\d{4}-\d{2}-\d{2}$/.test(ingreso)) throw new Error("La fecha de ingreso no es valida.");
   if (salida && !/^\d{4}-\d{2}-\d{2}$/.test(salida)) throw new Error("La fecha de salida no es valida.");
   if (ingreso && salida && salida < ingreso) throw new Error("La fecha de salida no puede ser anterior a la fecha de ingreso.");
   if (salida && !motivo) throw new Error("El motivo de salida es obligatorio si registras una fecha de salida.");
-  if (motivo.length > 500) throw new Error("El motivo de salida no puede superar 500 caracteres.");
+  if (salida && !EXIT_REASONS.includes(motivo)) throw new Error("Selecciona un motivo de salida de la lista.");
   return { ingreso, salida, motivo: salida ? motivo : "" };
 }
 
@@ -4883,6 +4885,7 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
     if (!administrator && Number(current.encargado_id) !== Number(session.id)) {
       throw invalidGroupRecord("Solo el jefe que creo el registro puede editarlo.", 403);
     }
+    assertGroupRecordEditable(current);
     const expectedRevision = Number(body.revision);
     if (!Number.isInteger(expectedRevision) || expectedRevision < 1) {
       throw invalidGroupRecord("Actualiza el historial antes de editar esta fila: falta su revision.", 409);
@@ -4910,6 +4913,7 @@ async function handleUpdateGroupLeaderRecord(request, response, recordId) {
       tipo_etiquetado: payload.tipo_etiquetado,
       observacion: payload.observacion
     };
+    assertGroupRecordEditable(current);
     const updateResult = await supabase
       .from("registros_tareas_jefe_equipo")
       .update(updatePayload)
@@ -4937,7 +4941,7 @@ async function handleDeleteGroupLeaderRecord(request, response, recordId) {
     const body = JSON.parse((await readBody(request)) || "{}");
     const currentResult = await supabase
       .from("registros_tareas_jefe_equipo")
-      .select("id,encargado_id,revision")
+      .select("id,encargado_id,revision,created_at")
       .eq("id", recordId)
       .maybeSingle();
     if (currentResult.error) throw currentResult.error;
@@ -4947,6 +4951,7 @@ async function handleDeleteGroupLeaderRecord(request, response, recordId) {
     if (!administrator && Number(current.encargado_id) !== Number(session.id)) {
       throw invalidGroupRecord("Solo el jefe que creo el registro puede eliminarlo.", 403);
     }
+    assertGroupRecordEditable(current);
     // Si el cliente manda la revision que tenia a la vista, se comprueba para
     // no borrar una fila que otra sesion acaba de cambiar.
     if (body.revision !== undefined && body.revision !== null &&

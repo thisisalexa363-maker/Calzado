@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { EXIT_REASONS, normalizeExitReason } from "../lib/exitReasons";
 import { AlertTriangle, CalendarCheck2, CheckCircle2, ClipboardCheck, Clock3, Eye, EyeOff, FileSpreadsheet, GraduationCap, HelpCircle, LockKeyhole, Mail, Pencil, Plus, RefreshCcw, Save, Search, Send, Trash2, Upload, UsersRound, X } from "lucide-react";
 import {
   bulkSetTrainingStatus,
@@ -682,7 +683,7 @@ function UsersPanel() {
       sueldo: Number(selectedUser.sueldo || 0).toFixed(2),
       fecha_ingreso: selectedUser.fecha_ingreso || "",
       fecha_salida: selectedUser.fecha_salida || "",
-      motivo_salida: selectedUser.motivo_salida || "",
+      motivo_salida: normalizeExitReason(selectedUser.motivo_salida),
       ...personalDataFromUser(selectedUser)
     });
   }, [selectedUser?.id]);
@@ -782,7 +783,7 @@ function UsersPanel() {
       return;
     }
     if (editForm.fecha_salida && !editForm.motivo_salida.trim()) {
-      setStatus({ type: "error", message: "Ingresa el motivo de la salida." });
+      setStatus({ type: "error", message: "Selecciona el motivo de la salida." });
       return;
     }
     if (editForm.hijos !== "" && (!Number.isInteger(Number(editForm.hijos)) || Number(editForm.hijos) < 0)) {
@@ -1011,13 +1012,12 @@ function UsersPanel() {
                 />
                 {editForm.fecha_salida ? (
                   <div className="form-span">
-                    <TextArea
+                    <SelectInput
                       label="Motivo de salida"
                       value={editForm.motivo_salida}
                       onChange={(motivo_salida) => setEditForm({ ...editForm, motivo_salida })}
-                      rows={3}
-                      maxLength={500}
-                      placeholder="Ej. Renuncia voluntaria, mejor oferta, termino de contrato..."
+                      options={[{ value: "", label: "Selecciona un motivo" }, ...EXIT_REASONS]}
+                      required
                     />
                   </div>
                 ) : null}

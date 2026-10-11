@@ -1,3 +1,4 @@
+import { isGroupRecordLocked, GROUP_RECORD_LOCK_MESSAGE } from "../lib/groupRecordPermissions";
 import React, { useEffect, useMemo, useState } from "react";
 import {
   BadgeCheck,
@@ -1378,6 +1379,10 @@ export function GroupTimeDashboard({ user }) {
     }
   }
   function startEditing(record) {
+    if (isGroupRecordLocked(record)) {
+      setStatus({ type: "error", message: GROUP_RECORD_LOCK_MESSAGE });
+      return;
+    }
     if (data.historyMigrationRequired || record.revision === null || record.revision === void 0) return;
     setStatus(null);
     setEditingId(record.id);
@@ -1388,6 +1393,11 @@ export function GroupTimeDashboard({ user }) {
     setEditDraft(null);
   }
   async function removeRecord(record) {
+    if (isGroupRecordLocked(record)) {
+      cancelEditing();
+      setStatus({ type: "error", message: GROUP_RECORD_LOCK_MESSAGE });
+      return;
+    }
     setStatus(null);
     setRowSaving(true);
     try {
@@ -1403,6 +1413,11 @@ export function GroupTimeDashboard({ user }) {
     }
   }
   async function saveEditedRecord(record) {
+    if (isGroupRecordLocked(record)) {
+      cancelEditing();
+      setStatus({ type: "error", message: GROUP_RECORD_LOCK_MESSAGE });
+      return;
+    }
     setStatus(null);
     const { payload, error: validationError } = buildPayload(editDraft, record.revision);
     if (validationError) {
@@ -1531,7 +1546,7 @@ export function GroupTimeDashboard({ user }) {
         "Exportar a Excel"
       ), /* @__PURE__ */ React.createElement(Button, { variant: "secondary", icon: RefreshCcw, onClick: reload }, "Actualizar"))
     },
-    /* @__PURE__ */ React.createElement(Alert, null, normalizeRole(user.rol) === "administrador" ? "Como administrador puedes editar o eliminar cualquier registro. Al guardar, el tiempo se recalcula." : "Las filas marcadas como Sin cerrar esperan su cantidad y su fecha y hora de fin: usa Completar para cargarlas. Al guardar, el tiempo se recalcula. Los registros de otros jefes son de solo lectura."),
+    /* @__PURE__ */ React.createElement(Alert, null, normalizeRole(user.rol) === "administrador" ? "Como administrador puedes editar o eliminar registros de cualquier encargado durante las primeras 24 horas desde su creacion. Al guardar, el tiempo se recalcula." : "Las filas marcadas como Sin cerrar esperan su cantidad y su fecha y hora de fin: usa Completar para cargarlas. Al guardar, el tiempo se recalcula. Solo puedes editar o eliminar tus registros durante las primeras 24 horas desde su creacion. Los registros de otros jefes son de solo lectura."),
     /* @__PURE__ */ React.createElement("div", { className: "history-toolbar" }, !isAdministrator ? /* @__PURE__ */ React.createElement("div", { className: "scope-switch", "aria-label": "Alcance de registros" }, /* @__PURE__ */ React.createElement(
       "button",
       {
@@ -1687,6 +1702,11 @@ function EditableGroupHistory({
   onReload,
   onStatus
 }) {
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const { page, totalPages, setPage, start, end } = usePagination(rows.length, DEFAULT_PAGE_SIZE);
   if (!rows.length) return <div className="empty-state">Sin registros para los filtros actuales.</div>;
   const visibleRows = rows.slice(start, end);
@@ -1732,8 +1752,9 @@ function EditableGroupHistory({
               }
               const record = row.record;
               const mine = String(record.encargado_id) === String(currentUserId);
-              const editable = (mine || canEditAll) && !editingDisabled && record.revision !== null && record.revision !== undefined;
-              if (String(editingId) === String(record.id) && draft) {
+              const locked = isGroupRecordLocked(record, now);
+              const editable = !locked && (mine || canEditAll) && !editingDisabled && record.revision !== null && record.revision !== undefined;
+              if (editable && String(editingId) === String(record.id) && draft) {
                 return (
                   <EditableHistoryRow
                     key={row.key}
@@ -1757,7 +1778,7 @@ function EditableGroupHistory({
                   editable={editable}
                   busy={saving}
                   average={compareToReferenceAverage(record, averageReferenceByTask)}
-                  readonlyReason={(mine || canEditAll) && record.revision == null ? "Registro anterior" : editingDisabled && (mine || canEditAll) ? "Migracion pendiente" : "Solo lectura"}
+                  readonlyReason={locked ? "Plazo de 24 h vencido" : (mine || canEditAll) && record.revision == null ? "Registro anterior" : editingDisabled && (mine || canEditAll) ? "Migracion pendiente" : "Solo lectura"}
                   onEdit={() => onEdit(record)}
                   onDelete={() => onDelete(record)}
                 />
