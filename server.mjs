@@ -5526,7 +5526,7 @@ async function loadIncidentData() {
   }));
 
   return {
-    workers: (usersResult.data || []).filter((user) => user.tipo !== "Apoyo" && isActive(user.activo))
+    workers: (usersResult.data || []).filter((user) => isActive(user.activo))
       .map((user) => ({ ...user, nombre: personDisplayName(user) })),
     tasks: (tasksResult.data || []).filter((task) => isActive(task.activo)),
     stores,
@@ -5593,9 +5593,8 @@ async function handleCreateIncident(request, response) {
       return;
     }
 
-    if (!isAreaIncident && await rejectSupportRecord(workerId, response)) return;
     const [workerResult, taskResult, storeResult, areaResult] = await Promise.all([
-      isAreaIncident ? Promise.resolve({ data: null, error: null }) : supabase.from("usuarios").select("id,nombre,email,rol,activo").eq("id", workerId).maybeSingle(),
+      isAreaIncident ? Promise.resolve({ data: null, error: null }) : supabase.from("usuarios").select("id,nombre,email,rol,tipo,activo").eq("id", workerId).maybeSingle(),
       supabase.from("tarea_error").select("id,nombre,activo").eq("id", taskId).maybeSingle(),
       supabase.from("tiendas").select("id,nombre,activo").eq("id", storeId).maybeSingle(),
       isAreaIncident ? supabase.from("areas_departamento").select("id,nombre").eq("id", areaId).maybeSingle() : Promise.resolve({ data: null, error: null })
@@ -5689,10 +5688,9 @@ async function handleUpdateIncident(request, response, incidentId) {
     if (!isAreaIncident && (!Number.isInteger(payload.usuario_id) || payload.usuario_id <= 0)) {
       throw invalidGroupRecord("Selecciona un trabajador activo.");
     }
-    if (!isAreaIncident && await rejectSupportRecord(payload.usuario_id, response)) return;
     if (!isAreaIncident) {
       const workerResult = await supabase.from("usuarios")
-        .select("id,activo").eq("id", payload.usuario_id).maybeSingle();
+        .select("id,tipo,activo").eq("id", payload.usuario_id).maybeSingle();
       if (workerResult.error) throw workerResult.error;
       if (!workerResult.data || !isActive(workerResult.data.activo)) {
         throw invalidGroupRecord("Selecciona un trabajador activo.");
